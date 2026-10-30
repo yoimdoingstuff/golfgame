@@ -20,18 +20,18 @@ A compact, match-based multiplayer minigolf game inspired by the minigolf miniga
 
 ## Current implementation status
 
-The current Windows graphical client is based on upstream Open-Golf. The upstream UI, Sokol renderer, level loader, course data, physics and audio are built from the pinned submodule. The Windows backend is patched to Sokol D3D11; Linux retains the upstream OpenGL backend. The project-owned application entry point is adapted from upstream main.c and initialises/updates/shuts down the Golfgame network module.
+The graphical client is based on upstream Open-Golf. The upstream UI, Sokol renderer, level loader, course data, physics and audio are built from the pinned submodule. The project-owned application entry point is adapted from upstream main.c and initialises/updates/shuts down the Golfgame network module.
 
 ### Implemented
 
 - Open-Golf submodule pinned at commit b9029f1e80c3110ae3d4fc9300854bdaeef96508.
-- Upstream golf target built as golfgame.exe with a 1280x720 window.
+- Upstream golf target built as golfgame.exe on Windows and golfgame on Linux.
 - Upstream main menu, course selector, course rendering, level assets and physics.
 - C11 UDP networking library and command-line demo.
 - Network module lifecycle integrated into the game application.
 - Multiplayer diagnostics tab in the built-in debug console, with host, LAN discovery, localhost join, start and leave controls.
-- Windows build workflow and screenshot capture script for startup, main menu, course selector, gameplay and network diagnostics.
-- Linux localhost smoke test for the standalone networking demo.
+- Windows build/package workflow and Linux localhost network smoke-test workflow.
+- Linux Mesa/Xvfb visual-capture automation. Actual screenshot generation remains to be verified.
 
 ### Important limitations
 
@@ -39,7 +39,7 @@ The current Windows graphical client is based on upstream Open-Golf. The upstrea
 - Open-Golf gameplay still maintains a single golf ball. Remote players are not yet integrated into its physics, input, rendering, camera and scoring systems.
 - The current UDP host relays client-reported state and is not authoritative or secure against modified clients.
 - Multi-machine 2-16 player tests have not yet been completed.
-- CI screenshots are visual smoke-test evidence, not a substitute for a physical Windows runtime test.
+- The Windows executable compiled in CI, but its first hosted-runner runtime launch crashed with access violation 0xC0000005 before a visible window was created. The Windows build remains the release target; Linux Mesa/Xvfb is used for automated visual smoke tests, not as a substitute for Windows hardware testing.
 
 ## Architecture
 
@@ -51,8 +51,8 @@ The current Windows graphical client is based on upstream Open-Golf. The upstrea
 - src/demo/net_demo.c: command-line networking test client.
 - CMakeLists.txt: builds tg_network and adds the Open-Golf submodule target.
 - scripts/copy-opengolf-data.cmake: copies runtime data to the build output and replaces the displayed product title in that generated copy.
-- scripts/capture-windows.ps1: launches the Windows game and stores labelled screenshots and runtime logs under logs/.
-- .github/workflows/build.yml: Windows build and visual capture; Linux networking-only smoke test.
+- scripts/capture-linux.sh: launches the Linux game under Xvfb/Mesa and stores labelled screenshots and runtime logs under logs/.
+- .github/workflows/build.yml: Windows build/package, Linux network smoke test and Linux visual-capture job.
 
 ## Roadmap
 
@@ -62,9 +62,9 @@ The current Windows graphical client is based on upstream Open-Golf. The upstrea
 - [x] Use upstream UI, rendering, physics and level assets rather than the homemade Win32 prototype.
 - [x] Link the network library and integrate its application lifecycle.
 - [x] Add a basic diagnostics panel for network smoke testing.
-- [x] Add Windows CI screenshot automation and always-uploaded runtime logs.
-- [ ] Successfully capture and inspect the actual main menu, course picker, gameplay and network diagnostics screens.
-- [ ] Verify that the Windows D3D11 backend removes the startup access violation, then inspect CI screenshots and resolve startup, layout or asset problems.
+- [x] Add Windows build/package and Linux networking CI.
+- [ ] Build the Linux visual target and inspect screenshots from Mesa/Xvfb.
+- [ ] Diagnose the Windows hosted-runner startup crash and test on physical Windows hardware.
 - [ ] Add standard host/find/join/lobby controls to the actual front-end UI.
 - [ ] Test on a physical Windows machine.
 

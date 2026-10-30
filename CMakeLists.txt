@@ -33,20 +33,6 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
             "Open-Golf submodule is missing. Run: git submodule update --init --recursive")
     endif()
 
-    if(WIN32)
-        # The upstream Windows default requests OpenGL 3.3. Use D3D11 on
-        # Windows instead so the renderer does not depend on a vendor OpenGL
-        # driver being available in CI or on older integrated graphics.
-        execute_process(
-            COMMAND "${CMAKE_COMMAND}"
-                "-DOPENGOLF_DIR=${OPENGOLF_DIR}"
-                -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch-opengolf-d3d11.cmake"
-            RESULT_VARIABLE _opengolf_backend_patch_result)
-        if(NOT _opengolf_backend_patch_result EQUAL 0)
-            message(FATAL_ERROR "Could not configure the Open-Golf D3D11 backend.")
-        endif()
-    endif()
-
     add_subdirectory("${OPENGOLF_DIR}" "${CMAKE_BINARY_DIR}/opengolf")
 
     if(NOT TARGET golf)
@@ -63,9 +49,6 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/integration/golf_multiplayer.c")
     target_include_directories(golf PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(golf PRIVATE tg_network)
-    if(WIN32)
-        target_link_libraries(golf PRIVATE d3d11 dxgi)
-    endif()
     set_target_properties(golf PROPERTIES OUTPUT_NAME "golfgame")
 
     # CMake only permits TARGET POST_BUILD declarations in the directory

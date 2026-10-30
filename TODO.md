@@ -7,12 +7,12 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Replace the homemade Win32/OpenGL UI and demo course with the pinned Open-Golf game, renderer, UI, physics and level data.
 - [x] Link the Golfgame UDP networking library into the Open-Golf application lifecycle.
 - [x] Add a Multiplayer diagnostics tab to the Open-Golf debug console.
-- [x] Add Windows CI screenshot automation and an always-uploaded visual-log artifact.
-- [x] Record process exit codes and enumerate game-owned windows when launch/capture fails.
-- [ ] Capture and inspect real main-menu, course-select, gameplay and network-console screenshots; the first runner attempt found no visible game window.
-- [ ] Fix Windows CI's missing visible-window/runtime issue, then inspect the screenshots for missing assets, scaling issues, blank frames and state-transition errors.
+- [x] Add Windows and Linux CI build jobs plus an always-uploaded Linux visual-log artifact.
+- [x] Add labelled visual capture checkpoints using Mesa software OpenGL under Xvfb.
+- [ ] Successfully build the Linux visual client and inspect main-menu, course-select, gameplay and network-console screenshots.
+- [ ] Investigate the Windows hosted-runner startup access violation (0xC0000005) and test the actual Windows game on a physical Windows PC.
 - [ ] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI. The current controls are diagnostics-only.
-- [ ] Test the game on a real Windows desktop, then test two Windows PCs on a permitted LAN.
+- [ ] Test two Windows PCs on a permitted LAN.
 
 ## Multiplayer gameplay
 
@@ -33,4 +33,4 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Known limitations
 
-The imported game is still single-player gameplay. The UDP module is initialised and updated, and its diagnostic controls can host/discover/join/start/leave rooms, but remote clients are not yet wired into Open-Golf's single-ball collision and rendering systems. A successful Windows build is not a runtime test; CI screenshots are required evidence, and real multi-PC playtesting remains outstanding.
+The imported game is still single-player gameplay. The UDP module is initialised and updated, and its diagnostic controls can host/discover/join/start/leave rooms, but remote clients are not yet wired into Open-Golf's single-ball collision and rendering systems. The Windows executable compiles, but Windows hosted-runner runtime capture has crashed before creating a window. Linux Mesa/Xvfb captures are being added as a reliable shared-renderer/UI check; real Windows and multi-PC playtesting remain outstanding.

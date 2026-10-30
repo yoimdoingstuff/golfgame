@@ -21,7 +21,6 @@ Read this file before making changes.
 - Preserve vendor/Open-Golf/LICENSE and the licence files under vendor/Open-Golf/src/3rd_party and vendor/Open-Golf/data.
 - docs/THIRD_PARTY_NOTICES.md is an index, not a substitute for actual upstream notices.
 - CMake builds the upstream golf target and replaces only its main.c platform entry point with src/integration/opengolf_main.c. Renderer, UI, course, physics, data and audio code stay upstream unless an intentional patch is documented.
-- On Windows, scripts/patch-opengolf-d3d11.cmake changes the pinned upstream root CMake backend macro from SOKOL_GLCORE33 to SOKOL_D3D11 during configure; d3d11 and dxgi are linked by the Golfgame target. This modifies the local submodule worktree. Linux retains upstream OpenGL.
 
 ## Current architecture
 
@@ -34,10 +33,11 @@ Read this file before making changes.
 - src/network/tg_network.c/.h: Golfgame's C11 UDP LAN layer.
 - src/demo/net_demo.c: command-line network test tool.
 - src/desktop/win_main.c: old prototype, not the primary game target.
-- CMakeLists.txt: build integration. Open-Golf target is golf, renamed to golfgame.exe.
+- CMakeLists.txt: builds the Open-Golf target as golfgame.exe on Windows and golfgame on Linux.
 - scripts/copy-opengolf-data.cmake: copies runtime assets and applies the Golfgame title to the menu data in the build directory.
-- scripts/capture-windows.ps1: starts the Windows game and captures visual checkpoints under logs/.
-- .github/workflows/build.yml: Windows build, launch and screenshot capture; Linux networking-only smoke test.
+- scripts/capture-linux.sh: launches the Linux game under Xvfb/Mesa and captures labelled visual checkpoints under logs/.
+- scripts/capture-windows.ps1: optional local Windows screenshot helper; the hosted Windows runner is not used for interactive visual capture.
+- .github/workflows/build.yml: Windows native build/package, Linux network smoke tests and Linux Mesa/Xvfb visual capture.
 
 ## Multiplayer limitations
 
@@ -55,25 +55,30 @@ The host currently relays client-reported state. It is not an authoritative or s
 
 Game executable: build/golfgame.exe. Runtime assets: build/data.
 
-### Linux networking tests
+### Linux game
+
+Install the X11/OpenGL/ALSA development packages used in the CI workflow, then:
+
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --config Release --target golf tg_net_demo
+
+### Linux networking smoke test
 
     cmake -S . -B build -DGOLFGAME_BUILD_OPEN_GOLF=OFF -DCMAKE_BUILD_TYPE=Release
     cmake --build build --config Release --target tg_net_demo
     sh ./scripts/test-local.sh
 
-The Linux job is intentionally networking-only. Do not imply it validates the Windows graphics build.
-
 ## Visual testing
 
-The Windows Actions workflow runs scripts/capture-windows.ps1 and always uploads the golfgame-visual-logs artifact. The Open-Golf executable compiled but the initial Windows runner crashed with access violation 0xC0000005 before creating its game window. D3D11 is now selected for Windows; screenshots remain unverified until PNGs are present. Inspect all screenshots and runtime stdout/stderr after UI, rendering, data or startup changes. The screenshots are stored in logs/screenshots in the job workspace, not committed to Git.
+The visual workflow runs scripts/capture-linux.sh under Xvfb with Mesa software OpenGL and uploads golfgame-visual-logs even when capture fails. Inspect logs/screenshots/, capture-report.txt, runtime-stdout.txt and runtime-stderr.txt from that artifact after UI, rendering, data or startup changes.
 
-Required visual checkpoints:
-- Main menu
+Required checkpoints:
+- Startup / main menu
 - Course selector
 - Loaded course/gameplay
 - Multiplayer diagnostics console
 
-A build passing is not enough. Check screenshots for blank windows, missing textures, wrong aspect ratio, clipped UI, bad scaling and failed state transitions. If the automation cannot reach a state, fix the automation or record the limitation rather than inventing a successful screenshot.
+These Linux captures validate the shared UI and renderer but do not prove Windows driver/runtime compatibility. A successful compile is not a successful screenshot test or physical Windows play-test. Be explicit about which checks passed.
 
 ## Change workflow
 

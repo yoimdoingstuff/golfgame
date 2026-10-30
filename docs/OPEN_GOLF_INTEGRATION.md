@@ -13,7 +13,7 @@ The submodule is deliberate. It avoids copying a large third-party tree into Gol
 
 ## Build integration
 
-The root CMake project creates tg_network and then adds vendor/Open-Golf. On Windows it runs scripts/patch-opengolf-d3d11.cmake before adding the subdirectory, changing only the Windows backend macro from SOKOL_GLCORE33 to SOKOL_D3D11; the Golfgame target links d3d11 and dxgi. The Linux OpenGL backend is left as upstream supplied it. The patch modifies the local submodule CMakeLists.txt during configure and is intentionally re-applied if the submodule is reset. It removes upstream's src/golf/main.c from the golf target and substitutes src/integration/opengolf_main.c. That application entry point is derived from upstream main.c, retains the MIT attribution, and calls golf_mp_init(), golf_mp_update() and golf_mp_shutdown() at the correct lifecycle points.
+The root CMake project creates tg_network and then adds vendor/Open-Golf. It removes upstream's src/golf/main.c from the golf target and substitutes src/integration/opengolf_main.c. That application entry point is derived from upstream main.c, retains the MIT attribution, and calls golf_mp_init(), golf_mp_update() and golf_mp_shutdown() at the correct lifecycle points.
 
 src/integration/golf_multiplayer.c/.h wraps the existing Golfgame UDP API. It is linked to the upstream golf target and adds a Multiplayer diagnostics tab to the built-in ImGui debug console. Press the grave/backtick key to open the debug console. The tab currently exposes basic host, LAN discovery, localhost join, start and leave actions.
 
@@ -35,6 +35,6 @@ The network protocol currently relays client-reported state and is not secure fo
 
 ## Runtime visual checks
 
-scripts/capture-windows.ps1 launches build/golfgame.exe from the build directory and captures the main menu, course selector, gameplay and network diagnostics console. It saves PNGs and process logs under logs/. The Windows Actions workflow uploads this directory as golfgame-visual-logs. Download the artifact from the workflow run and inspect it after changes to the renderer, UI, course loading, input or lifecycle.
+scripts/capture-linux.sh launches the Linux game under Xvfb with Mesa software OpenGL. It captures PNG checkpoints for startup/main menu, course selection, gameplay and the multiplayer diagnostics console, then writes screenshots and runtime stdout/stderr under logs/. The build-linux-visual GitHub Actions job uploads the logs directory as golfgame-visual-logs, even when capture fails.
 
-The screenshot automation is a smoke test, not a substitute for manual testing on a real Windows desktop or testing two separate PCs on a permitted LAN.
+These screenshots exercise the shared Open-Golf renderer/UI and course loading. They do not test the Windows OpenGL driver or replace manual Windows runtime and two-PC LAN tests.
