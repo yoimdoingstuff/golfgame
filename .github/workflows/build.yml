@@ -52,7 +52,10 @@ jobs:
       - name: Configure Linux Open-Golf client
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build Linux game client
-        run: cmake --build build --config Release --target golf
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          cmake --build build --config Release --target golf 2>&1 | tee logs/build-linux-visual.txt
       - name: Capture UI checkpoints with Mesa software rendering
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1600x900x24 +extension GLX +render -noreset" \
