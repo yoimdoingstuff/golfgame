@@ -34,6 +34,7 @@ typedef struct tg_net_player {
     uint32_t id;
     char name[TG_NET_PLAYER_NAME];
     float ball_x, ball_y, ball_z;
+    float ball_qx, ball_qy, ball_qz, ball_qw;
     uint32_t ball_colour_rgba; /* Packed 0xRRGGBBAA; visual only. */
     uint16_t hat_id;           /* 0 means no hat/accessory. */
     uint16_t trail_id;         /* 0 means no trail. */
@@ -58,6 +59,7 @@ typedef struct tg_net_info {
     uint32_t room_id;
     uint8_t player_count;
     uint8_t max_players;
+    uint8_t match_started;
     char room_name[TG_NET_ROOM_NAME];
     char local_name[TG_NET_PLAYER_NAME];
     char last_error[160];
@@ -69,6 +71,7 @@ int tg_net_host(const char *player_name, const char *room_name, uint8_t max_play
 int tg_net_discover(void);
 size_t tg_net_get_rooms(tg_net_room *out_rooms, size_t capacity);
 int tg_net_join(const char *ipv4_or_hostname, const char *player_name);
+int tg_net_start_match(void);
 void tg_net_leave(void);
 void tg_net_update(float dt);
 void tg_net_set_local_player(const tg_net_player *player);

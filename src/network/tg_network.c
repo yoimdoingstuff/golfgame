@@ -30,13 +30,13 @@ typedef socklen_t tg_socklen;
 #endif
 
 #define TG_MAGIC 0x54474F4Cu
-#define TG_VERSION 2u
+#define TG_VERSION 3u
 #define TG_TIMEOUT 8.0f
 #define TG_DISCOVERY_TIME 3.0f
 #define TG_SNAPSHOT_TIME 0.10f
 #define TG_STATE_TIME 0.10f
 
-enum { PK_DISCOVER=1, PK_OFFER, PK_JOIN, PK_WELCOME, PK_STATE, PK_SNAPSHOT, PK_LEAVE };
+enum { PK_DISCOVER=1, PK_OFFER, PK_JOIN, PK_WELCOME, PK_STATE, PK_SNAPSHOT, PK_LEAVE, PK_START };
 
 #pragma pack(push, 1)
 typedef struct packet_header {
@@ -63,10 +63,12 @@ typedef struct player_packet {
     uint32_t ball_colour_rgba;
     char name[TG_NET_PLAYER_NAME];
     float x, y, z;
+    float qx, qy, qz, qw;
 } player_packet;
 typedef struct state_packet { uint32_t token; player_packet player; } state_packet;
 typedef struct snapshot_packet {
     uint8_t count;
+    uint8_t match_started;
     player_packet players[TG_NET_MAX_PLAYERS];
 } snapshot_packet;
 #pragma pack(pop)
@@ -170,6 +172,7 @@ static player_packet to_wire(const tg_net_player *p) {
     w.flags=p->flags; w.ball_colour_rgba=p->ball_colour_rgba;
     copy_text(w.name,sizeof(w.name),p->name);
     w.x=p->ball_x; w.y=p->ball_y; w.z=p->ball_z;
+    w.qx=p->ball_qx; w.qy=p->ball_qy; w.qz=p->ball_qz; w.qw=p->ball_qw;
     return w;
 }
 static void from_wire(tg_net_player *p, const player_packet *w) {
@@ -179,6 +182,7 @@ static void from_wire(tg_net_player *p, const player_packet *w) {
     p->ball_colour_rgba=w->ball_colour_rgba;
     copy_text(p->name,sizeof(p->name),w->name);
     p->ball_x=w->x; p->ball_y=w->y; p->ball_z=w->z;
+    p->ball_qx=w->qx; p->ball_qy=w->qy; p->ball_qz=w->qz; p->ball_qw=w->qw;
 }
 static void refresh_host_players(void) {
     size_t i,n=0;
@@ -208,6 +212,7 @@ static void send_welcome(const peer *p) {
 static void send_snapshot(const struct sockaddr_in *to) {
     unsigned char buf[1200]; snapshot_packet snap; size_t i,n;
     memset(&snap,0,sizeof(snap));
+    snap.match_started=g.info.match_started;
     snap.players[snap.count++]=to_wire(&g.local);
     for(i=0; i<TG_NET_MAX_PLAYERS && snap.count<TG_NET_MAX_PLAYERS; i++)
         if(g.peers[i].active) snap.players[snap.count++]=to_wire(&g.peers[i].player);
@@ -282,10 +287,13 @@ static void handle_packet(const unsigned char *buf, size_t bytes, const struct s
     }
     if(g.info.role==TG_NET_ROLE_CLIENT && same_address(from,&g.server)) {
         g.server_silence=0;
+        if(h.type==PK_START && payload==0 && h.room_id==g.info.room_id) {
+            g.info.match_started=1; return;
+        }
         if(h.type==PK_WELCOME && payload==sizeof(welcome_packet)) {
             welcome_packet w; memcpy(&w,p,sizeof(w));
             g.info.local_player_id=w.id; g.info.max_players=w.max_players;
-            g.info.room_id=h.room_id; g.token=w.token;
+            g.info.room_id=h.room_id; g.token=w.token; g.info.match_started=0;
             copy_text(g.info.room_name,sizeof(g.info.room_name),w.room);
             g.local.id=w.id; g.info.status=TG_NET_STATUS_CONNECTED; return;
         }
@@ -296,6 +304,7 @@ static void handle_packet(const unsigned char *buf, size_t bytes, const struct s
             count=s.count; need=offsetof(snapshot_packet,players)+count*sizeof(player_packet);
             if(count>TG_NET_MAX_PLAYERS || payload!=need) return;
             memset(g.players,0,sizeof(g.players));
+            g.info.match_started=s.match_started;
             for(i=0; i<count; i++) from_wire(&g.players[i],&s.players[i]);
             g.info.player_count=(uint8_t)count;
         }
@@ -388,10 +397,25 @@ int tg_net_join(const char *host,const char *name) {
     copy_text(g.local.name,sizeof(g.local.name),name);
     if(!g.local.ball_colour_rgba) g.local.ball_colour_rgba=TG_NET_DEFAULT_BALL_COLOUR_RGBA;
     g.info.role=TG_NET_ROLE_CLIENT; g.info.status=TG_NET_STATUS_CONNECTING;
-    g.info.room_id=0; g.info.local_player_id=0; g.token=0;
+    g.info.room_id=0; g.info.local_player_id=0; g.info.match_started=0; g.token=0;
     g.connect_time=0; g.server_silence=0; g.state_tick=0;
     send_join(); return 1;
 }
+int tg_net_start_match(void) {
+    unsigned char buf[64];
+    size_t n, i;
+    if (!g.ready || g.info.role != TG_NET_ROLE_HOST || g.info.status != TG_NET_STATUS_HOSTING) {
+        error_text("Only the room host can start the match");
+        return 0;
+    }
+    g.info.match_started = 1;
+    n = make_packet(buf, PK_START, g.info.room_id, NULL, 0);
+    for (i = 0; i < TG_NET_MAX_PLAYERS; i++) {
+        if (g.peers[i].active) send_to(&g.peers[i].address, buf, n);
+    }
+    return 1;
+}
+
 void tg_net_leave(void) {
     if(g.info.role==TG_NET_ROLE_CLIENT && g.info.status==TG_NET_STATUS_CONNECTED) {
         unsigned char buf[64];

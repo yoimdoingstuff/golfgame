@@ -6,14 +6,15 @@ Players compete on compact, colourful low-poly courses, customise their balls wi
 
 ## Current milestone: multiplayer transport prototype
 
-This repository currently contains an original C11 networking proof-of-concept, kept separate from the game renderer. It is a transport foundation, not the complete game.
+The repository now contains a first native Windows graphical slice plus the original C11 networking prototype. The graphical client uses Win32, system OpenGL 1.1 and GLU, with no heavyweight engine runtime. The first course is a compact low-poly obstacle lane; it is a prototype, not a finished 18-hole game.
 
 ### Technology direction
 
 - Native Windows x64 release, portable ZIP, no installer.
 - C11 and CMake, without a heavyweight engine runtime.
-- Open-Golf is the candidate rendering and golf-physics foundation: https://github.com/mgerdes/Open-Golf
-- Sokol-based graphics/audio from Open-Golf; custom ball collision/response code.
+- Native Win32 windowing and system OpenGL 1.1/GLU for the current graphical prototype.
+- Open-Golf remains a research reference for its custom golf-ball collision/response and level tooling: https://github.com/mgerdes/Open-Golf
+- The current first course uses a deliberately small native ball-rolling prototype; full course/physics integration remains planned.
 - Low-poly themed courses and an angled third-person camera following the active ball.
 - 2-16 players per match.
 
@@ -81,7 +82,7 @@ The current network protocol is a local prototype, not a secure public-game prot
 - Ball colour identifies players; optional hats/accessories sit on the ball and optional trails follow it.
 - Cosmetics are visual-only and never change mass, friction, bounce, collision or shot power.
 - Wins unlock extra colours, hats and trails.
-- One player shoots at a time; everyone else watches and spectates.
+- Everybody can putt simultaneously, matching the original GMod Tower minigolf flow.
 - Compact themed courses use ramps, tunnels, bumpers, lifts, launchers, moving obstacles, water hazards and silly shortcuts.
 
 See [the roadmap](docs/PROJECT_PLAN.md), [course direction](docs/COURSE_DIRECTION.md), [cosmetics and progression](docs/COSMETICS_AND_PROGRESSION.md), and [Open-Golf integration notes](docs/OPEN_GOLF_INTEGRATION.md).

@@ -6,8 +6,8 @@ This is a compact GMod Tower-style minigolf match, not a persistent social world
 
 1. Main menu: Play, Find Match, Host Match, Join by IP, Settings.
 2. Small room screen: choose course/options; up to 16 players join.
-3. Course intro: short flyover and tee order.
-4. Round: active player aims and shoots; others watch the shot, orbit their cameras and spectate. All balls and stroke totals remain visible.
+3. Course intro: short flyover and all golf balls spawn at their tees.
+4. Round: everybody can aim and shoot simultaneously. All balls and stroke totals remain visible while players watch one another.
 5. Results: scorecard, winner, win progress, rematch and return to menu.
 
 ## Course feel
@@ -25,12 +25,12 @@ This is a compact GMod Tower-style minigolf match, not a persistent social world
 - Optional hats/accessories attach to the top of the ball and follow its position/rotation.
 - Optional trails emit behind moving balls, with particle caps and distance-based reduction.
 - No player body, golfer mesh, skeleton or humanoid animation system.
-- During another player's turn, highlight their ball and smoothly focus the camera on it.
+- Players can select another ball to spectate, smoothly moving the camera focus.
 
 ## Fair multiplayer rules
 
-- One active shooter at a time.
-- Stable, visible turn order; players who finish the hole are skipped.
-- Host validates turn ownership, aim/power limits, strokes, resets and hole completion.
+- All players may shoot simultaneously.
+- Players finish independently; completed balls stay by the cup while others finish.
+- Host relays ball state and coordinates match completion; authoritative shot validation is planned.
 - Clients interpolate remote ball motion from host snapshots.
 - Late join is disabled after the first hole starts in the initial release.

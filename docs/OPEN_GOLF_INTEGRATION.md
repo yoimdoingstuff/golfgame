@@ -14,14 +14,14 @@ if(WIN32)
 endif()
 ```
 
-Link `tg_network` to the `golf` target in `src/golf/CMakeLists.txt`.
+Link `tg_network` to the `golf` target in `src/golf/CMakeLists.txt`. The current Windows prototype instead builds its own tiny Win32/OpenGL front end; Open-Golf source is not vendored yet.
 
 ## Integration points
 
 - `src/golf/main.c`: initialise networking, call `tg_net_update(dt)` once per frame and shut it down during cleanup.
 - `src/golf/ui.c`: add Host/Find Match/Join by IP to the existing menu. Do not create a 3D lobby.
 - `src/golf/game.h`: add up to 16 match player records, each with its own ball state, strokes, finish flag and cosmetic IDs. The old global ball cannot represent every player.
-- `src/golf/game.c`: accept shots only from the active player. The host runs the existing ball physics and broadcasts authoritative results.
+- `src/golf/game.c`: extend the single-ball simulation to maintain an independent ball state for every participant. All players putt simultaneously; the host relays snapshots in the first pass.
 - Rendering: draw one ball per player with its colour, optional accessory and optional trail. Do not build golfer avatars.
 
 ## Protocol limits

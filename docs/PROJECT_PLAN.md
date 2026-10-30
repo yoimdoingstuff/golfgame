@@ -8,11 +8,12 @@ A compact, match-based multiplayer minigolf game inspired by the minigolf miniga
 
 - Portable Windows x64 executable, distributed as a ZIP with no installer.
 - Native C/CMake and a small runtime footprint; no Godot runtime.
-- Open-Golf is the candidate rendering/physics foundation (C, CMake, Sokol and custom golf-ball collision/response; MIT license).
+- Current graphical client: native Win32 + system OpenGL 1.1/GLU; no heavyweight engine runtime.
+- Open-Golf remains a research/reference option for custom ball physics and level editing, but is not vendored into the current build.
 - Low-poly, colourful courses with exaggerated, readable obstacles.
 - Angled third-person camera following the active ball.
 - 2-16 players per match.
-- Turn-based minigolf, with every player's ball visible.
+- Simultaneous minigolf: each player can putt at the same time.
 - Player identity is expressed through ball colour, optional hat/accessory and trail.
 - Win progression unlocks cosmetics only; no physics upgrades.
 
@@ -23,8 +24,8 @@ A compact, match-based multiplayer minigolf game inspired by the minigolf miniga
 3. One compact low-poly course with a complete start-to-finish match.
 4. One golf ball per player, labelled by player name and coloured for easy identification.
 5. Aim, power control, shot preview and camera orbit/follow.
-6. Only the active player may shoot; host validates turns and scoring.
-7. Other players can watch/spectate; scorecard and results screen show the winner.
+6. Everybody may shoot independently; the host relays ball states and tracks the match.
+7. Scorecard and results screen show all players and the lowest stroke count.
 8. Obstacles include ramps, banked turns, moving platforms, bumpers and a water hazard.
 
 ## Networking
@@ -40,7 +41,7 @@ Managed networks can use client isolation, VLANs, endpoint rules and firewalls. 
 
 ### Match authority
 
-The host will own turn order, accepted shots, ball simulation, strokes, hole completion and results. Clients send shot inputs only on their turn. The host simulates the current ball and broadcasts authoritative ball snapshots. Cosmetic IDs can be replicated, but unlock ownership is not authenticated in this prototype.
+Everybody putts simultaneously. Each client initially simulates its own ball and sends ball state; the host relays snapshots. Host-authoritative shot validation and score verification are later hardening tasks. Cosmetic IDs can be replicated, but unlock ownership is not authenticated in this prototype.
 
 Before public release, add packet sequence numbers, rate limits, stronger peer validation, protocol negotiation, host-side shot/score validation and reconnect handling.
 
@@ -63,12 +64,12 @@ Before public release, add packet sequence numbers, rate limits, stronger peer v
 - Adapt the single-ball game state to one ball record per match player.
 - Add Host/Find Match/Join by IP controls to the existing menu.
 - Render remote golf balls and their cosmetics.
-- Implement authoritative turn order and score validation.
+- Implement simultaneous ball movement, score tracking and match completion.
 
 ### M2 - first playable match
 
 - One polished low-poly course.
-- 2-16 coloured golf balls, labels and turn indicators.
+- 2-16 coloured golf balls, labels and a shared scorecard.
 - Ball aiming, shooting, camera orbit and follow.
 - Spectating, scorecard and match results.
 - No golfer/avatar models.
