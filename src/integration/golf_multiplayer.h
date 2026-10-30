@@ -16,5 +16,7 @@ void golf_mp_leave(void);
 
 void golf_mp_get_info(tg_net_info *out_info);
 const tg_net_player *golf_mp_get_players(size_t *out_count);
+const tg_net_player *golf_mp_get_remote_players(size_t *out_count);
+void golf_mp_draw_remote_balls(void);
 
 #endif

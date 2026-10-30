@@ -2,17 +2,40 @@
 #include "cimgui/cimgui.h"
 
 #include "common/debug_console.h"
+#include "golf/game.h"
 #include "golf/golf.h"
 #include "golf/ui.h"
 #include "integration/golf_multiplayer.h"
 
+#include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 static int multiplayer_ready;
 static int match_start_handled;
 static char mp_player_name[TG_NET_PLAYER_NAME] = "Player";
 static char mp_room_name[TG_NET_ROOM_NAME] = "Golfgame Room";
 static char mp_direct_address[48] = "";
+
+typedef struct golf_mp_remote_slot {
+    int active;
+    int seen;
+    uint32_t id;
+    float x, y, z;
+    float missing_time;
+    tg_net_player player;
+} golf_mp_remote_slot;
+
+static golf_mp_remote_slot mp_remote_slots[TG_NET_MAX_PLAYERS];
+static tg_net_player mp_remote_players[TG_NET_MAX_PLAYERS];
+static size_t mp_remote_count;
+
+static const uint32_t mp_player_colors[TG_NET_MAX_PLAYERS] = {
+    0xFFFFFFFFu, 0xFF5C5CFFu, 0x4D9DE0FFu, 0xF2C14EFFu,
+    0x7DCE82FFu, 0xB388EBFFu, 0xFF8C42FFu, 0x50C5B7FFu,
+    0xF06AB8FFu, 0xA7C957FFu, 0xEE964BFFu, 0x6C91C2FFu,
+    0xD66BA0FFu, 0x8ECAE6FFu, 0x9BC53DFFu, 0xE55934FFu
+};
 
 static const char *status_name(tg_net_status status) {
     switch (status) {
@@ -23,6 +46,132 @@ static const char *status_name(tg_net_status status) {
         case TG_NET_STATUS_OFFLINE:
         default: return "Offline";
     }
+}
+
+static void clear_remote_players(void) {
+    memset(mp_remote_slots, 0, sizeof(mp_remote_slots));
+    memset(mp_remote_players, 0, sizeof(mp_remote_players));
+    mp_remote_count = 0;
+}
+
+static golf_mp_remote_slot *find_remote_slot(uint32_t id) {
+    size_t i;
+    golf_mp_remote_slot *free_slot = NULL;
+
+    for (i = 0; i < TG_NET_MAX_PLAYERS; ++i) {
+        golf_mp_remote_slot *slot = &mp_remote_slots[i];
+        if (slot->active && slot->id == id) return slot;
+        if (!slot->active && !free_slot) free_slot = slot;
+    }
+    return free_slot;
+}
+
+static void update_remote_players(float dt, const tg_net_info *info) {
+    size_t player_count = 0;
+    size_t i;
+    const tg_net_player *players;
+
+    for (i = 0; i < TG_NET_MAX_PLAYERS; ++i) {
+        mp_remote_slots[i].seen = 0;
+    }
+
+    players = tg_net_get_players(&player_count);
+    if (player_count > TG_NET_MAX_PLAYERS) player_count = TG_NET_MAX_PLAYERS;
+
+    if (info->role == TG_NET_ROLE_OFFLINE ||
+        (info->role == TG_NET_ROLE_CLIENT && info->status != TG_NET_STATUS_CONNECTED)) {
+        clear_remote_players();
+        return;
+    }
+
+    for (i = 0; i < player_count; ++i) {
+        const tg_net_player *incoming = &players[i];
+        golf_mp_remote_slot *slot;
+        float blend;
+
+        if (incoming->id == 0 || incoming->id == info->local_player_id) continue;
+        /* Bit 2 means the sender has loaded a course and published a real ball
+           position. Do not draw peers at the default world origin in the lobby. */
+        if ((incoming->flags & 4u) == 0) continue;
+
+        slot = find_remote_slot(incoming->id);
+        if (!slot) continue;
+
+        if (!slot->active || slot->id != incoming->id) {
+            memset(slot, 0, sizeof(*slot));
+            slot->active = 1;
+            slot->id = incoming->id;
+            slot->x = incoming->ball_x;
+            slot->y = incoming->ball_y;
+            slot->z = incoming->ball_z;
+        }
+
+        /* Smooth the 10 Hz network snapshots without delaying local input. */
+        blend = 1.0f - expf(-fmaxf(dt, 0.0f) * 18.0f);
+        slot->x += (incoming->ball_x - slot->x) * blend;
+        slot->y += (incoming->ball_y - slot->y) * blend;
+        slot->z += (incoming->ball_z - slot->z) * blend;
+        slot->player = *incoming;
+        slot->player.ball_x = slot->x;
+        slot->player.ball_y = slot->y;
+        slot->player.ball_z = slot->z;
+        slot->missing_time = 0.0f;
+        slot->seen = 1;
+    }
+
+    mp_remote_count = 0;
+    for (i = 0; i < TG_NET_MAX_PLAYERS; ++i) {
+        golf_mp_remote_slot *slot = &mp_remote_slots[i];
+        if (!slot->active) continue;
+
+        if (!slot->seen) {
+            slot->missing_time += fmaxf(dt, 0.0f);
+            if (slot->missing_time > 1.5f) {
+                memset(slot, 0, sizeof(*slot));
+                continue;
+            }
+        }
+
+        if (mp_remote_count < TG_NET_MAX_PLAYERS) {
+            mp_remote_players[mp_remote_count++] = slot->player;
+        }
+    }
+}
+
+static void publish_local_ball(const tg_net_info *info) {
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+    tg_net_player player;
+
+    if (info->role != TG_NET_ROLE_HOST &&
+        !(info->role == TG_NET_ROLE_CLIENT && info->status == TG_NET_STATUS_CONNECTED)) {
+        return;
+    }
+    if (golf->state != GOLF_STATE_IN_GAME || game->state == GOLF_GAME_STATE_MAIN_MENU) {
+        return;
+    }
+
+    memset(&player, 0, sizeof(player));
+    player.ball_x = game->ball.pos.x;
+    player.ball_y = game->ball.pos.y;
+    player.ball_z = game->ball.pos.z;
+    player.ball_qx = game->ball.orientation.x;
+    player.ball_qy = game->ball.orientation.y;
+    player.ball_qz = game->ball.orientation.z;
+    player.ball_qw = game->ball.orientation.w;
+    player.ball_colour_rgba = TG_NET_DEFAULT_BALL_COLOUR_RGBA;
+    if (info->local_player_id > 0 && info->local_player_id <= TG_NET_MAX_PLAYERS) {
+        player.ball_colour_rgba = mp_player_colors[info->local_player_id - 1];
+    }
+    player.strokes = (uint16_t)(game->stroke_count < 0 ? 0 :
+        (game->stroke_count > 65535 ? 65535 : game->stroke_count));
+    player.flags |= 4u; /* Valid in-game ball position. */
+    if (game->ball.is_moving) player.flags |= 1u;
+    if (game->ball.is_in_hole || game->state == GOLF_GAME_STATE_CELEBRATION ||
+        game->state == GOLF_GAME_STATE_FINISHED) {
+        player.flags |= 2u;
+    }
+    tg_net_set_local_player(&player);
 }
 
 int golf_mp_host(const char *player_name, const char *room_name) {
@@ -46,7 +195,11 @@ int golf_mp_start_match(void) {
 }
 
 void golf_mp_leave(void) {
-    if (multiplayer_ready) tg_net_leave();
+    if (multiplayer_ready) {
+        tg_net_leave();
+        clear_remote_players();
+        match_start_handled = 0;
+    }
 }
 
 void golf_mp_get_info(tg_net_info *out_info) {
@@ -55,6 +208,11 @@ void golf_mp_get_info(tg_net_info *out_info) {
 
 const tg_net_player *golf_mp_get_players(size_t *out_count) {
     return tg_net_get_players(out_count);
+}
+
+const tg_net_player *golf_mp_get_remote_players(size_t *out_count) {
+    if (out_count) *out_count = mp_remote_count;
+    return mp_remote_players;
 }
 
 static void multiplayer_debug_tab(void) {
@@ -92,7 +250,7 @@ static void multiplayer_debug_tab(void) {
     }
 
     for (size_t i = 0; i < count && i < TG_NET_MAX_PLAYERS; ++i) {
-        igText("%s  |  strokes %u  |  ball (%0.2f, %0.2f, %0.2f)",
+        igText("%s  |  %u strokes  |  ball (%0.2f, %0.2f, %0.2f)",
             players[i].name,
             (unsigned)players[i].strokes,
             players[i].ball_x, players[i].ball_y, players[i].ball_z);
@@ -109,6 +267,7 @@ void golf_mp_init(void) {
         fprintf(stderr, "Golfgame multiplayer initialisation failed.\n");
         return;
     }
+    clear_remote_players();
     multiplayer_ready = 1;
     golf_debug_console_add_tab("Multiplayer", multiplayer_debug_tab);
 }
@@ -119,6 +278,8 @@ void golf_mp_update(float dt) {
 
     tg_net_update(dt);
     tg_net_get_info(&info);
+    publish_local_ball(&info);
+    update_remote_players(dt, &info);
 
     if (!info.match_started) {
         match_start_handled = 0;
@@ -126,7 +287,7 @@ void golf_mp_update(float dt) {
         golf_state_t state = golf_get()->state;
         if (state == GOLF_STATE_MAIN_MENU) {
             /* A host PK_START or replicated snapshot starts the same course
-               for every client. Remote balls are not rendered yet. */
+               for every client. Remote ball positions are displayed as separate balls. */
             match_start_handled = 1;
             golf_start_level(0);
         } else if (state == GOLF_STATE_LOADING_LEVEL || state == GOLF_STATE_IN_GAME) {
@@ -229,7 +390,7 @@ void golf_mp_ui_update(void) {
                 if (igButton("START MATCH", (ImVec2){298.0f, 42.0f})) {
                     (void)golf_mp_start_match();
                 }
-                igTextWrapped("All connected players load the same course together. Remote ball rendering and shared shot simulation are still being integrated.");
+                igTextWrapped("All connected players load the same course together. Remote ball physics is local on each player for now.");
             } else if (info.match_started) {
                 igTextWrapped("Match started. Loading the course...");
             } else if (info.role == TG_NET_ROLE_CLIENT) {
@@ -252,5 +413,6 @@ void golf_mp_ui_update(void) {
 void golf_mp_shutdown(void) {
     if (!multiplayer_ready) return;
     tg_net_shutdown();
+    clear_remote_players();
     multiplayer_ready = 0;
 }

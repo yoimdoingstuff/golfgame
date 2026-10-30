@@ -51,6 +51,16 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
         message(FATAL_ERROR "Could not safely patch the Open-Golf file path helper.")
     endif()
 
+    # Extend the upstream course pass with networked player-ball rendering.
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOPENGOLF_DIR=${OPENGOLF_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch-opengolf-draw.cmake"
+        RESULT_VARIABLE _opengolf_draw_patch_result)
+    if(NOT _opengolf_draw_patch_result EQUAL 0)
+        message(FATAL_ERROR "Could not safely patch the Open-Golf remote-ball draw hook.")
+    endif()
+
     add_subdirectory("${OPENGOLF_DIR}" "${CMAKE_BINARY_DIR}/opengolf")
 
     if(NOT TARGET golf)
@@ -64,7 +74,8 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
     set_property(TARGET golf PROPERTY SOURCES "${_golf_sources}")
     target_sources(golf PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src/integration/opengolf_main.c"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/integration/golf_multiplayer.c")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/integration/golf_multiplayer.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/integration/golf_remote_balls.c")
     target_include_directories(golf PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(golf PRIVATE tg_network)
     set_target_properties(golf PROPERTIES OUTPUT_NAME "golfgame")
