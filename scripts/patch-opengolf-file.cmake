@@ -1,0 +1,41 @@
+if(NOT DEFINED OPENGOLF_DIR)
+    message(FATAL_ERROR "OPENGOLF_DIR is required.")
+endif()
+
+set(_file_c "${OPENGOLF_DIR}/src/common/file.c")
+if(NOT EXISTS "${_file_c}")
+    message(FATAL_ERROR "Open-Golf file.c was not found: ${_file_c}")
+endif()
+
+file(READ "${_file_c}" _contents)
+
+string(FIND "${_contents}" "snprintf(file.path + path_len" _path_fixed)
+string(FIND "${_contents}" "snprintf(file.name + name_len" _name_fixed)
+if(NOT _path_fixed EQUAL -1 AND NOT _name_fixed EQUAL -1)
+    message(STATUS "Open-Golf safe path-extension patch is already applied.")
+    return()
+endif()
+
+set(_old_path "strncpy(file.path + path_len, ext, GOLF_FILE_MAX_PATH);")
+set(_old_name "strncpy(file.name + name_len, ext, GOLF_FILE_MAX_NAME);")
+set(_new_path "snprintf(file.path + path_len, (size_t)(GOLF_FILE_MAX_PATH - path_len), \"%s\", ext);")
+set(_new_name "snprintf(file.name + name_len, (size_t)(GOLF_FILE_MAX_NAME - name_len), \"%s\", ext);")
+
+if(_path_fixed EQUAL -1)
+    string(FIND "${_contents}" "${_old_path}" _old_path_pos)
+    if(_old_path_pos EQUAL -1)
+        message(FATAL_ERROR "Could not find the expected unsafe Open-Golf file.path copy.")
+    endif()
+    string(REPLACE "${_old_path}" "${_new_path}" _contents "${_contents}")
+endif()
+
+if(_name_fixed EQUAL -1)
+    string(FIND "${_contents}" "${_old_name}" _old_name_pos)
+    if(_old_name_pos EQUAL -1)
+        message(FATAL_ERROR "Could not find the expected unsafe Open-Golf file.name copy.")
+    endif()
+    string(REPLACE "${_old_name}" "${_new_name}" _contents "${_contents}")
+endif()
+
+file(WRITE "${_file_c}" "${_contents}")
+message(STATUS "Applied bounded copies in Open-Golf golf_file_append_extension().")

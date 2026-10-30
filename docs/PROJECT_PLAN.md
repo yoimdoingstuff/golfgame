@@ -31,7 +31,7 @@ The graphical client is based on upstream Open-Golf. The upstream UI, Sokol rend
 - Network module lifecycle integrated into the game application.
 - Multiplayer diagnostics tab in the built-in debug console, with host, LAN discovery, localhost join, start and leave controls.
 - Windows build/package workflow and Linux localhost network smoke-test workflow.
-- Linux Mesa/Xvfb visual-capture automation. Actual screenshot generation remains to be verified.
+- Linux Mesa/Xvfb visual-capture automation. The first run created a Sokol window but aborted while indexing assets due to an upstream stack-buffer overflow in the path-extension helper. A guarded CMake-time fix is now added; the next visual run must verify it.
 
 ### Important limitations
 

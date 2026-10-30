@@ -9,8 +9,9 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Add a Multiplayer diagnostics tab to the Open-Golf debug console.
 - [x] Add Windows and Linux CI build jobs plus an always-uploaded Linux visual-log artifact.
 - [x] Add labelled visual capture checkpoints using Mesa software OpenGL under Xvfb.
-- [ ] Successfully build the Linux visual client and inspect main-menu, course-select, gameplay and network-console screenshots.
-- [ ] Investigate the Windows hosted-runner startup access violation (0xC0000005) and test the actual Windows game on a physical Windows PC.
+- [x] Build the Linux Open-Golf client and launch its Sokol window under Mesa/Xvfb.
+- [ ] Verify the upstream path-extension overflow fix and inspect main-menu, course-select, gameplay and network-console screenshots.
+- [ ] Check whether the Open-Golf path-extension fix resolves the Windows hosted-runner access violation (0xC0000005), then test the actual Windows game on a physical Windows PC.
 - [ ] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI. The current controls are diagnostics-only.
 - [ ] Test two Windows PCs on a permitted LAN.
 

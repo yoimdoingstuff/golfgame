@@ -21,6 +21,7 @@ Read this file before making changes.
 - Preserve vendor/Open-Golf/LICENSE and the licence files under vendor/Open-Golf/src/3rd_party and vendor/Open-Golf/data.
 - docs/THIRD_PARTY_NOTICES.md is an index, not a substitute for actual upstream notices.
 - CMake builds the upstream golf target and replaces only its main.c platform entry point with src/integration/opengolf_main.c. Renderer, UI, course, physics, data and audio code stay upstream unless an intentional patch is documented.
+- `scripts/patch-opengolf-file.cmake` applies an idempotent, narrow safety patch to upstream `src/common/file.c`. The upstream `golf_file_append_extension()` copied an entire path-buffer capacity from the end of the existing path, overrunning the stack buffer during data indexing. Keep this patch until upstream fixes the bug and the runtime screenshot test passes.
 
 ## Current architecture
 
