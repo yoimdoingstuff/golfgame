@@ -3,6 +3,7 @@
 
 #include "common/debug_console.h"
 #include "golf/golf.h"
+#include "golf/ui.h"
 #include "integration/golf_multiplayer.h"
 
 #include <stdio.h>
@@ -26,7 +27,7 @@ static const char *status_name(tg_net_status status) {
 
 int golf_mp_host(const char *player_name, const char *room_name) {
     int ok = multiplayer_ready ? tg_net_host(player_name, room_name, TG_NET_MAX_PLAYERS) : 0;
-    fprintf(stderr, "[golfgame] Host LAN room '%s': %s\\n",
+    fprintf(stderr, "[golfgame] Host LAN room '%s': %s\n",
         room_name ? room_name : "", ok ? "hosting" : "failed");
     fflush(stderr);
     return ok;
@@ -145,7 +146,8 @@ void golf_mp_ui_update(void) {
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_NoSavedSettings;
 
-    if (!multiplayer_ready || golf_get()->state != GOLF_STATE_MAIN_MENU) {
+    if (!multiplayer_ready || golf_get()->state != GOLF_STATE_MAIN_MENU ||
+        golf_ui_get()->main_menu.is_level_select_open) {
         return;
     }
 
