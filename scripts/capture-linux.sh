@@ -69,8 +69,8 @@ if [[ -z "$WINDOW_ID" ]]; then
     {
         echo "No visible window titled Golfgame was found for PID $APP_PID."
         echo
-        echo "X11 window tree:"
-        xwininfo -root -tree 2>&1 || true
+        echo "X11 window list:"
+        xdotool search --onlyvisible --name '.*' 2>&1 || true
         echo
         echo "Runtime stdout:"
         cat "$STDOUT" || true
@@ -84,7 +84,8 @@ fi
 {
     echo "Game PID: $APP_PID"
     echo "Window ID: $WINDOW_ID"
-    xwininfo -id "$WINDOW_ID" 2>&1 || true
+    echo "Window title: $(xdotool getwindowname "$WINDOW_ID" 2>&1 || true)"
+    xdotool getwindowgeometry --shell "$WINDOW_ID" 2>&1 || true
 } >> "$REPORT"
 
 xdotool windowmap "$WINDOW_ID" 2>/dev/null || true

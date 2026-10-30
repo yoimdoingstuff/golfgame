@@ -39,6 +39,18 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
             "Open-Golf submodule is missing. Run: git submodule update --init --recursive")
     endif()
 
+    # Fix an upstream stack-buffer overflow in golf_file_append_extension()
+    # before compiling the vendored source. This patch is idempotent and fails
+    # closed if the pinned source no longer matches the code we audited.
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOPENGOLF_DIR=${OPENGOLF_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch-opengolf-file.cmake"
+        RESULT_VARIABLE _opengolf_file_patch_result)
+    if(NOT _opengolf_file_patch_result EQUAL 0)
+        message(FATAL_ERROR "Could not safely patch the Open-Golf file path helper.")
+    endif()
+
     add_subdirectory("${OPENGOLF_DIR}" "${CMAKE_BINARY_DIR}/opengolf")
 
     if(NOT TARGET golf)
