@@ -5,6 +5,7 @@
 
 void golf_mp_init(void);
 void golf_mp_update(float dt);
+void golf_mp_ui_update(void);
 void golf_mp_shutdown(void);
 
 int golf_mp_host(const char *player_name, const char *room_name);
