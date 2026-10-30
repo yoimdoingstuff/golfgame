@@ -7,8 +7,9 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Replace the homemade Win32/OpenGL UI and demo course with the pinned Open-Golf game, renderer, UI, physics and level data.
 - [x] Link the Golfgame UDP networking library into the Open-Golf application lifecycle.
 - [x] Add a Multiplayer diagnostics tab to the Open-Golf debug console.
-- [x] Capture main-menu, course-select, gameplay and network-console screenshots in Windows CI and upload them as an artifact.
-- [ ] Inspect the first CI screenshots and fix any missing assets, scaling issues, blank frames or runtime errors they reveal.
+- [x] Add Windows CI screenshot automation and an always-uploaded visual-log artifact.
+- [ ] Capture and inspect real main-menu, course-select, gameplay and network-console screenshots; the first runner attempt found no visible game window.
+- [ ] Fix Windows CI's missing visible-window/runtime issue, then inspect the screenshots for missing assets, scaling issues, blank frames and state-transition errors.
 - [ ] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI. The current controls are diagnostics-only.
 - [ ] Test the game on a real Windows desktop, then test two Windows PCs on a permitted LAN.
 

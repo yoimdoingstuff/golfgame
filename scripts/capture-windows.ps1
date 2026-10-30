@@ -31,6 +31,26 @@ public static class GolfgameWin32 {
     [DllImport("user32.dll")]
     public static extern bool ClientToScreen(IntPtr hwnd, ref POINT point);
     [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+    public static IntPtr FindWindowForProcess(int processId) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr hwnd, IntPtr lParam) {
+            uint ownerPid;
+            GetWindowThreadProcessId(hwnd, out ownerPid);
+            if (ownerPid == (uint)processId && IsWindowVisible(hwnd)) {
+                found = hwnd;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+    [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int x, int y);
@@ -46,13 +66,27 @@ $transcript = Join-Path $logRoot "capture-report.txt"
 "Started $(Get-Date -Format o)" | Set-Content $transcript
 "Executable: $game" | Add-Content $transcript
 "Working directory: $work" | Add-Content $transcript
-$proc = Start-Process -FilePath $game -WorkingDirectory $work -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+$proc = Start-Process -FilePath $game -WorkingDirectory $work -PassThru -WindowStyle Normal -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+"Process id: $($proc.Id)" | Add-Content $transcript
 function Get-GameWindow {
     $handle = [IntPtr]::Zero
     for ($i = 0; $i -lt 80 -and $handle -eq [IntPtr]::Zero; $i++) {
-        $handle = [GolfgameWin32]::FindWindow($null, "Golfgame")
+        $proc.Refresh()
+        if ($proc.HasExited) {
+            "Process exited before a visible window was found. Exit code: $($proc.ExitCode)" | Add-Content $transcript
+            break
+        }
+        $handle = $proc.MainWindowHandle
+        if ($handle -eq [IntPtr]::Zero) {
+            $handle = [GolfgameWin32]::FindWindow($null, "Golfgame")
+        }
+        if ($handle -eq [IntPtr]::Zero) {
+            $handle = [GolfgameWin32]::FindWindowForProcess($proc.Id)
+        }
         if ($handle -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 250 }
     }
+    $proc.Refresh()
+    "Process state after window search: HasExited=$($proc.HasExited); ExitCode=$($proc.ExitCode); MainWindowTitle='$($proc.MainWindowTitle)'; MainWindowHandle=$($proc.MainWindowHandle)" | Add-Content $transcript
     return $handle
 }
 function Get-ClientOrigin([IntPtr]$handle) {
@@ -108,7 +142,14 @@ function Tap-Grave([IntPtr]$handle) {
 try {
     $window = Get-GameWindow
     if ($window -eq [IntPtr]::Zero) {
-        throw "The game did not create a window. Check runtime-stdout.txt and runtime-stderr.txt."
+        $proc.Refresh()
+        if ($proc.HasExited) {
+            throw "Game process exited with code $($proc.ExitCode) before creating a visible window. Check runtime-stdout.txt and runtime-stderr.txt."
+        }
+        throw "Game process $($proc.Id) is still running but has no visible top-level window. Check the capture report and runtime logs."
+    }
+    if (-not [GolfgameWin32]::IsWindowVisible($window)) {
+        throw "The game window handle was found but the window is not visible."
     }
     [void][GolfgameWin32]::SetForegroundWindow($window)
     Start-Sleep -Seconds 1

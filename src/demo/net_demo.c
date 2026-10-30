@@ -41,7 +41,7 @@ static void print_players(void) {
 static void usage(const char *exe) {
     printf("Golfgame network prototype\n\n");
     printf("Usage:\n  %s host <player-name> [room-name]\n",exe);
-    printf("  %s scan\n  %s join <ip-or-hostname> <player-name>\n\n",exe);
+    printf("  %s scan\n  %s join <ip-or-hostname> <player-name>\n\n",exe,exe);
     printf("Host/join use UDP port %d. Ctrl+C exits.\n",TG_NET_DEFAULT_PORT);
 }
 static double monotonic_seconds(void) {

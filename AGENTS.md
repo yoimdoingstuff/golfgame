@@ -64,7 +64,7 @@ The Linux job is intentionally networking-only. Do not imply it validates the Wi
 
 ## Visual testing
 
-The Windows Actions workflow runs scripts/capture-windows.ps1 and uploads the golfgame-visual-logs artifact. Inspect all screenshots and runtime stdout/stderr after UI, rendering, data or startup changes. The screenshots are stored in logs/screenshots in the job workspace, not committed to Git.
+The Windows Actions workflow runs scripts/capture-windows.ps1 and always uploads the golfgame-visual-logs artifact. A previous run compiled the executable but failed to find a visible window; treat screenshots as unverified until PNGs are present. Inspect all screenshots and runtime stdout/stderr after UI, rendering, data or startup changes. The screenshots are stored in logs/screenshots in the job workspace, not committed to Git.
 
 Required visual checkpoints:
 - Main menu

@@ -44,7 +44,7 @@ The integrated graphical game currently targets the Windows build workflow. The 
 
 ## Visual CI logs
 
-The Windows Actions job launches the game, captures the main menu, course selector, gameplay and network debug console, and uploads them as the golfgame-visual-logs artifact. Screenshots and runtime stdout/stderr are written under logs/ in the Actions workspace. The logs directory is ignored by Git so generated screenshots do not pollute source history.
+The Windows Actions job attempts to launch the game and capture the main menu, course selector, gameplay and network debug console, then uploads the contents of logs/ as the golfgame-visual-logs artifact even when launch or capture fails. The first runner attempt built the executable successfully but did not find a visible game window, so actual PNG screenshots are not yet confirmed. Runtime stdout/stderr and window-detection diagnostics are written under logs/ in the Actions workspace. The logs directory is ignored by Git so generated captures do not pollute source history.
 
 Open the latest GitHub Actions run and download the golfgame-visual-logs artifact to inspect the screenshots:
 https://github.com/yoimdoingstuff/golfgame/actions

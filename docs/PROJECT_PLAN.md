@@ -62,7 +62,8 @@ The current Windows graphical client is based on upstream Open-Golf. The upstrea
 - [x] Use upstream UI, rendering, physics and level assets rather than the homemade Win32 prototype.
 - [x] Link the network library and integrate its application lifecycle.
 - [x] Add a basic diagnostics panel for network smoke testing.
-- [x] Capture screenshot checkpoints from Windows CI.
+- [x] Add Windows CI screenshot automation and always-uploaded runtime logs.
+- [ ] Successfully capture and inspect the actual main menu, course picker, gameplay and network diagnostics screens.
 - [ ] Inspect CI screenshots and resolve startup, layout or asset problems.
 - [ ] Add standard host/find/join/lobby controls to the actual front-end UI.
 - [ ] Test on a physical Windows machine.
