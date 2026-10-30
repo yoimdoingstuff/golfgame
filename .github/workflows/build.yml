@@ -48,7 +48,7 @@ jobs:
           sudo apt-get install -y \
             libx11-dev libxcursor-dev libxi-dev libxrandr-dev libxinerama-dev \
             libxext-dev libxxf86vm-dev libgl1-mesa-dev libgl1-mesa-dri \
-            libasound2-dev xvfb xdotool imagemagick mesa-utils
+            libasound2-dev xvfb xdotool imagemagick mesa-utils x11-apps
       - name: Configure Linux Open-Golf client
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build Linux game client
@@ -58,7 +58,7 @@ jobs:
           cmake --build build --config Release --target golf 2>&1 | tee logs/build-linux-visual.txt
       - name: Capture UI checkpoints with Mesa software rendering
         run: |
-          xvfb-run --auto-servernum --server-args="-screen 0 1600x900x24 +extension GLX +render -noreset" \
+          timeout 120s xvfb-run --auto-servernum --server-args="-screen 0 1600x900x24 +extension GLX +render -noreset" \
             env LIBGL_ALWAYS_SOFTWARE=1 bash ./scripts/capture-linux.sh
       - name: Upload visual logs and screenshots
         if: always()

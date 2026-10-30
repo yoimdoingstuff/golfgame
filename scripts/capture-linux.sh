@@ -88,13 +88,15 @@ fi
 } >> "$REPORT"
 
 xdotool windowmap "$WINDOW_ID" 2>/dev/null || true
-xdotool windowfocus --sync "$WINDOW_ID"
+timeout 10s xdotool windowfocus --sync "$WINDOW_ID"
 sleep 2
 
 capture() {
     local name="$1"
     local path="$SHOT_DIR/$name"
-    import -window "$WINDOW_ID" "$path"
+    timeout 15s xwd -silent -id "$WINDOW_ID" -out "$path.xwd"
+    timeout 15s convert "$path.xwd" "$path"
+    rm -f "$path.xwd"
     local dimensions bytes
     dimensions="$(identify -format '%wx%h' "$path")"
     bytes="$(stat -c '%s' "$path")"
@@ -106,7 +108,7 @@ capture() {
 }
 
 click_at() {
-    xdotool mousemove --window "$WINDOW_ID" "$1" "$2" click 1
+    timeout 10s xdotool mousemove --window "$WINDOW_ID" "$1" "$2" click 1
     sleep 0.4
 }
 
@@ -125,7 +127,7 @@ sleep 6
 capture "03-course-gameplay.png"
 
 # Open the debug console, then choose the Golfgame Multiplayer tab.
-xdotool key --window "$WINDOW_ID" grave
+timeout 10s xdotool key --window "$WINDOW_ID" grave
 sleep 1
 capture "04-debug-console.png"
 click_at 225 48
