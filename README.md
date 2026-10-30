@@ -2,12 +2,12 @@
 
 A compact, portable Windows multiplayer minigolf game inspired by the minigolf minigame in GMod Tower. **The golf balls are the players.** There are no golfer avatars, humanoid rigs, character movement systems, or Plaza/social-hub world.
 
-The graphical client now uses the upstream Open-Golf engine, course renderer, UI, physics, level loader and asset pipeline. Golfgame keeps its C11 LAN networking layer and replaces only the upstream application entry point to initialise and update that layer.
+The graphical client now uses the upstream Open-Golf engine, course renderer, UI, physics, level loader and asset pipeline. On Windows, the Sokol renderer is configured to use Direct3D 11 instead of upstream's OpenGL 3.3 default; the upstream Linux backend remains unchanged. Golfgame keeps its C11 LAN networking layer and replaces only the upstream application entry point to initialise and update that layer.
 
 ## Current state
 
 - Open-Golf is pinned as a Git submodule under vendor/Open-Golf.
-- The Windows client is built as golfgame.exe with a 1280x720 landscape window.
+- The Windows client is built as golfgame.exe with a 1280x720 landscape window and the Sokol D3D11 backend.
 - The upstream game's main menu, course selector, course data, renderer, physics, audio and editor code are used.
 - The multiplayer library is linked and its lifecycle is integrated. A Multiplayer diagnostics tab is available in the upstream debug console (press the grave/backtick key); it currently provides basic host, LAN discovery, localhost join, start and leave controls.
 - The existing network protocol is still a prototype and remote players are not yet represented as independent Open-Golf physics balls. Linking the library alone does not make the game fully multiplayer.
@@ -44,7 +44,7 @@ The integrated graphical game currently targets the Windows build workflow. The 
 
 ## Visual CI logs
 
-The Windows Actions job attempts to launch the game and capture the main menu, course selector, gameplay and network debug console, then uploads the contents of logs/ as the golfgame-visual-logs artifact even when launch or capture fails. The first runner attempt built the executable successfully but did not find a visible game window, so actual PNG screenshots are not yet confirmed. Runtime stdout/stderr and window-detection diagnostics are written under logs/ in the Actions workspace. The logs directory is ignored by Git so generated captures do not pollute source history.
+The Windows Actions job attempts to launch the game and capture the main menu, course selector, gameplay and network debug console, then uploads the contents of logs/ as the golfgame-visual-logs artifact even when launch or capture fails. The Windows executable compiled, but initial runtime capture found an access violation (0xC0000005) before the window was created. The Windows backend is now being switched from OpenGL 3.3 to D3D11; the crash fix and actual PNG capture still need a successful follow-up run. Runtime stdout/stderr and window-detection diagnostics are written under logs/ in the Actions workspace. The logs directory is ignored by Git so generated captures do not pollute source history.
 
 Open the latest GitHub Actions run and download the golfgame-visual-logs artifact to inspect the screenshots:
 https://github.com/yoimdoingstuff/golfgame/actions

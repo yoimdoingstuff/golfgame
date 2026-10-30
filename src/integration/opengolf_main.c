@@ -28,7 +28,18 @@
 #include "golf/ui.h"
 #include "integration/golf_multiplayer.h"
 
+static void startup_log(const char *message) {
+    fprintf(stderr, "[golfgame] %s\n", message ? message : "(no message)");
+    fflush(stderr);
+}
+
+static void app_fail(const char *message) {
+    fprintf(stderr, "[golfgame] Sokol startup failure: %s\n", message ? message : "(no details)");
+    fflush(stderr);
+}
+
 static void init(void) {
+    startup_log("Sokol graphics context created; entering application init.");
     stm_setup();
     sg_setup(&(sg_desc){
         .buffer_pool_size = 2048,
@@ -38,9 +49,11 @@ static void init(void) {
     simgui_setup(&(simgui_desc_t){
         .dpi_scale = sapp_dpi_scale()
     });
+    startup_log("Sokol, graphics and ImGui initialisation complete.");
 }
 
 static void cleanup(void) {
+    startup_log("Shutting down Golfgame multiplayer and graphics.");
     golf_mp_shutdown();
     sg_shutdown();
 }
@@ -52,6 +65,7 @@ static void frame(void) {
 
     float dt = (float)stm_sec(stm_laptime(&last_time));
     if (!inited) {
+        startup_log("Initialising Open-Golf game systems.");
         golf_data_init();
         golf_data_load("data/static_data.static_data", false);
 
@@ -62,8 +76,10 @@ static void frame(void) {
         golf_graphics_init();
         golf_draw_init();
         golf_init();
+        startup_log("Initialising Golfgame LAN transport.");
         golf_mp_init();
         inited = true;
+        startup_log("Game systems initialised; first frame will render.");
     }
 
     if (!storage_inited && !golf_storage_finish_init()) {
@@ -85,8 +101,6 @@ static void frame(void) {
 
     golf_inputs_end_frame();
     golf_graphics_end_frame();
-
-    fflush(stdout);
 }
 
 static void event(const sapp_event *event) {
@@ -98,6 +112,7 @@ sapp_desc sokol_main(int argc, char *argv[]) {
     GOLF_UNUSED(argc);
     GOLF_UNUSED(argv);
 
+    startup_log("Sokol application entry point reached.");
     golf_alloc_init();
     golf_log_init();
     return (sapp_desc){
@@ -105,6 +120,7 @@ sapp_desc sokol_main(int argc, char *argv[]) {
         .frame_cb = frame,
         .cleanup_cb = cleanup,
         .event_cb = event,
+        .fail_cb = app_fail,
         .width = 1280,
         .height = 720,
         .window_title = "Golfgame",

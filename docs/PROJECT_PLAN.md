@@ -20,7 +20,7 @@ A compact, match-based multiplayer minigolf game inspired by the minigolf miniga
 
 ## Current implementation status
 
-The current Windows graphical client is based on upstream Open-Golf. The upstream UI, Sokol renderer, level loader, course data, physics and audio are built from the pinned submodule. The project-owned application entry point is adapted from upstream main.c and initialises/updates/shuts down the Golfgame network module.
+The current Windows graphical client is based on upstream Open-Golf. The upstream UI, Sokol renderer, level loader, course data, physics and audio are built from the pinned submodule. The Windows backend is patched to Sokol D3D11; Linux retains the upstream OpenGL backend. The project-owned application entry point is adapted from upstream main.c and initialises/updates/shuts down the Golfgame network module.
 
 ### Implemented
 
@@ -64,7 +64,7 @@ The current Windows graphical client is based on upstream Open-Golf. The upstrea
 - [x] Add a basic diagnostics panel for network smoke testing.
 - [x] Add Windows CI screenshot automation and always-uploaded runtime logs.
 - [ ] Successfully capture and inspect the actual main menu, course picker, gameplay and network diagnostics screens.
-- [ ] Inspect CI screenshots and resolve startup, layout or asset problems.
+- [ ] Verify that the Windows D3D11 backend removes the startup access violation, then inspect CI screenshots and resolve startup, layout or asset problems.
 - [ ] Add standard host/find/join/lobby controls to the actual front-end UI.
 - [ ] Test on a physical Windows machine.
 

@@ -8,6 +8,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Link the Golfgame UDP networking library into the Open-Golf application lifecycle.
 - [x] Add a Multiplayer diagnostics tab to the Open-Golf debug console.
 - [x] Add Windows CI screenshot automation and an always-uploaded visual-log artifact.
+- [x] Record process exit codes and enumerate game-owned windows when launch/capture fails.
 - [ ] Capture and inspect real main-menu, course-select, gameplay and network-console screenshots; the first runner attempt found no visible game window.
 - [ ] Fix Windows CI's missing visible-window/runtime issue, then inspect the screenshots for missing assets, scaling issues, blank frames and state-transition errors.
 - [ ] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI. The current controls are diagnostics-only.

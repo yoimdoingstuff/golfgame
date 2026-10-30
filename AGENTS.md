@@ -21,6 +21,7 @@ Read this file before making changes.
 - Preserve vendor/Open-Golf/LICENSE and the licence files under vendor/Open-Golf/src/3rd_party and vendor/Open-Golf/data.
 - docs/THIRD_PARTY_NOTICES.md is an index, not a substitute for actual upstream notices.
 - CMake builds the upstream golf target and replaces only its main.c platform entry point with src/integration/opengolf_main.c. Renderer, UI, course, physics, data and audio code stay upstream unless an intentional patch is documented.
+- On Windows, scripts/patch-opengolf-d3d11.cmake changes the pinned upstream root CMake backend macro from SOKOL_GLCORE33 to SOKOL_D3D11 during configure; d3d11 and dxgi are linked by the Golfgame target. This modifies the local submodule worktree. Linux retains upstream OpenGL.
 
 ## Current architecture
 
@@ -64,7 +65,7 @@ The Linux job is intentionally networking-only. Do not imply it validates the Wi
 
 ## Visual testing
 
-The Windows Actions workflow runs scripts/capture-windows.ps1 and always uploads the golfgame-visual-logs artifact. A previous run compiled the executable but failed to find a visible window; treat screenshots as unverified until PNGs are present. Inspect all screenshots and runtime stdout/stderr after UI, rendering, data or startup changes. The screenshots are stored in logs/screenshots in the job workspace, not committed to Git.
+The Windows Actions workflow runs scripts/capture-windows.ps1 and always uploads the golfgame-visual-logs artifact. The Open-Golf executable compiled but the initial Windows runner crashed with access violation 0xC0000005 before creating its game window. D3D11 is now selected for Windows; screenshots remain unverified until PNGs are present. Inspect all screenshots and runtime stdout/stderr after UI, rendering, data or startup changes. The screenshots are stored in logs/screenshots in the job workspace, not committed to Git.
 
 Required visual checkpoints:
 - Main menu
