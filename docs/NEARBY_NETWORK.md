@@ -1,69 +1,52 @@
-# Nearby and node-based networking
+# Nearby discovery, invitations and transport experiments
 
 ## Goal
 
-Make joining a game feel as effortless as LocalSend, AirDrop or Quick Share: open Golfgame, see nearby players/devices, select one, approve the connection and join. These products are inspiration for the experience, not protocols to impersonate or reverse-engineer.
+Joining should feel like LocalSend: open Golfgame, see nearby rooms/devices, select one, approve the connection and join. LocalSend is inspiration for discovery and user-driven handoff, not a dependency or a protocol Golfgame should impersonate.
 
-The networking layer should be transport-independent. The game should ask for a session connection; the transport layer chooses an available, permitted path and reports its status.
+The connection layer must be transport-independent. Gameplay asks for a session; a connection manager discovers candidate paths, tests them and reports the selected transport and its limitations.
 
-## Proposed connection model
+## Discovery and invitation handoff
 
-### 1. Nearby discovery
+1. Advertise minimal room metadata using mDNS/DNS-SD where available, retaining UDP discovery as a fallback.
+2. Show nearby rooms with host/room name, player count, protocol compatibility and connection status.
+3. If discovery is unavailable, let the host create a short-lived invitation. A .golfinvite file or QR code can be shared through LocalSend, email, messaging or another app chosen by the user.
+4. Invitation contents should be versioned and minimal: room ID, candidate endpoints, supported transport capabilities, expiry and a short-lived, room-scoped join credential. Never put passwords, private keys, persistent authentication tokens or unrelated device data in the invitation.
+5. Validate every field and endpoint, enforce size limits and expiry, prevent replay, and require host approval. Treat imported invitations as untrusted input.
+6. Importing an invitation should populate the join UI automatically. The player should not need to manually copy IP addresses or ports.
 
-- Advertise a small Golfgame service record on the local network using mDNS/DNS-SD where available.
-- Retain the current UDP discovery broadcast as a fallback for networks where multicast service discovery is unavailable.
-- Include only the minimum discovery metadata: protocol version, short room/device label, room ID, current/max player count and a temporary connection endpoint.
-- Do not broadcast player secrets, persistent identifiers, profile data or authentication tokens.
-- Show discovered rooms as nearby devices with a clear host/room name, player count and connection state.
-- Keep direct IP/hostname and short room-code joining as fallback paths.
+An invitation transfers connection information; it does not make an unreachable endpoint reachable. Client isolation, VLAN separation and firewall rules can still prevent a direct connection.
 
-### 2. Pairing and trust
+## Connection negotiation
 
-- A discovered device is not trusted merely because it is on the same LAN.
-- Require an explicit join/accept action. For first-time pairing, show a short comparison code or QR code on both devices.
-- Establish an authenticated encrypted session using a reviewed standard cryptographic library and ephemeral key agreement.
-- Add replay protection, protocol-version negotiation, packet-size limits and rate limits.
-- Store a remembered peer identity only after user consent, with a way to remove it.
-- Never roll a custom encryption protocol.
+- Probe advertised IPv4 and IPv6 candidates and select a reachable direct path when available.
+- Keep manual address and short room-code joining as fallbacks.
+- Evaluate standard ICE/STUN for NAT traversal where supported and permitted.
+- Provide a transparent, explicitly operated/approved relay fallback for peers that cannot connect directly.
+- Expose diagnostics: discovery source, candidate paths, selected transport, connection time, RTT, loss and actionable failure reason.
+- Do not silently proxy, tunnel or forward arbitrary network traffic. Any relay carries only authenticated, bounded Golfgame messages and is visible to participants.
 
-### 3. Node graph
+## Proxy and obfuscation research
 
-Represent each running client as a node. A connection graph may contain:
+The transport API may support optional, user-configured proxy adapters for controlled testing. SOCKS5 is primarily a proxy interface; UDP support is not universal, and TCP-only proxy paths may be unsuitable for the game's realtime UDP snapshots.
 
-- **Direct edge:** preferred connection between two peers on the same reachable network.
-- **Coordinator node:** the room host manages membership, match start and authoritative match state.
-- **Optional relay edge:** a peer may forward Golfgame packets for another peer only when that peer explicitly opts in and the network/service policy permits it.
+Tor SOCKS and obfs4 may be evaluated as an experimental research transport in an isolated, authorised environment. This is not a promised production transport: Tor latency and congestion can make realtime gameplay poor, and obfs4 is not a general-purpose low-latency game relay. Measure connection success, RTT, jitter, loss, throughput and reconnect behaviour before considering any user-facing support.
 
-The first implementation should remain simple: host-coordinated sessions with direct client-to-host links. A full mesh is not automatically better; with 16 players it increases connection count, NAT/firewall complexity and attack surface. Add direct peer edges only if a measured gameplay feature needs them.
+Do not build covert tunnelling, traffic disguise or automatic proxy behaviour intended to circumvent a school/work network's controls. Use only networks and relays where the traffic is permitted, and fail clearly when policy or connectivity prevents a session.
 
-Multi-hop forwarding is a later experiment, not a way to sneak traffic through blocked networks. Any relay must be visible, consent-based and limited to Golfgame traffic. Add a hop limit, loop prevention, bandwidth caps, peer revocation and end-to-end authentication before enabling it.
-
-### 4. Transport priority
-
-1. Direct LAN IPv4/IPv6 connection after nearby discovery.
-2. Documented OS-supported Wi-Fi Direct / local peer APIs, if they are available and permitted on the target Windows versions.
-3. Explicitly permitted internet relay service for players on different networks.
-4. Bluetooth only as a small discovery/pairing channel by default. BLE is not a suitable assumed transport for frequent real-time ball snapshots. Investigate Bluetooth PAN only as a separate, platform-specific option.
-
-Do not claim compatibility with AirDrop or Quick Share. Their protocols and system integrations are not generic public game networking APIs. Recreate the simple nearby-device experience with open standards and documented platform APIs instead.
-
-## Implementation stages
-
-- [ ] Define a transport interface so gameplay does not depend directly on UDP sockets.
-- [ ] Add mDNS/DNS-SD advertisements and discovery, retaining current UDP broadcast fallback.
-- [ ] Create a nearby-device list with room name, host, player count, protocol compatibility and signal/connection status.
-- [ ] Add first-connection confirmation and short-code/QR pairing.
-- [ ] Add authenticated encrypted sessions using a maintained library; document key lifecycle and peer revocation.
-- [ ] Add IPv6 and robust interface selection for multi-adapter Windows PCs.
-- [ ] Add connection diagnostics showing the selected path (direct LAN, Wi-Fi Direct, or approved relay).
-- [ ] Evaluate optional peer-to-peer edges and multi-hop relay only after direct host/client multiplayer is stable and measured.
-- [ ] Test client isolation, guest Wi-Fi, multiple network adapters, firewall-denied cases, packet loss and reconnects without attempting to bypass restrictions.
-
-## Security and policy rules
+## Pairing and security
 
 - Discovery is not authentication.
-- Never trust a peer's advertised player count, room name or state without validating the session.
-- Do not forward arbitrary IP traffic. Relay only bounded Golfgame protocol messages.
-- No stealth tunnels, traffic disguise, firewall evasion or automatic proxying.
-- Fail clearly when a network blocks peer-to-peer communication. Offer manual join or an explicitly permitted relay instead.
-- Do not log secrets, pairing codes, private keys or full packet payloads in CI artifacts.
+- Require an explicit join/accept action and first-time pairing confirmation.
+- Use a maintained cryptographic library and reviewed authenticated key exchange; never invent cryptography.
+- Add replay protection, protocol-version negotiation, packet-size limits, rate limits and peer revocation.
+- Keep credentials short-lived and scoped to a single room/session.
+- Never log invitation secrets, pairing codes, private keys or full packet payloads.
+
+## Node graph
+
+Start with host-coordinated sessions and direct client-to-host links. A full mesh is not automatically better for 16 players. Optional peer-to-peer edges or multi-hop relays are later experiments, enabled only with explicit participant consent and permitted network/service policy. Require hop limits, loop prevention, bandwidth caps and end-to-end authentication.
+
+## Test matrix
+
+Test multicast-disabled networks, multiple adapters, IPv4/IPv6, client isolation, VLAN separation, blocked UDP, packet loss, NAT, proxy-only environments, host shutdown and reconnects. Include permitted relay tests and report blocked paths accurately. Never attempt to bypass access controls during testing.

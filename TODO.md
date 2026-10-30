@@ -15,6 +15,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Verify the Host Lobby click, room creation status and seven real visual checkpoints in CI.
 - [x] Retry initial black frames rather than uploading blank screenshots.
 - [x] Hide the Multiplayer panel while the course selector is open so its close control remains accessible.
+- [ ] Fix the current Windows and Linux Open-Golf CI configure failures; the networking-only Linux smoke test passes, but the latest full workflow does not.
 - [ ] Check whether the Open-Golf path-extension fix resolves the Windows hosted-runner access violation (0xC0000005), then test the actual Windows game on a physical Windows PC.
 - [x] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI.
 - [ ] Test two Windows PCs on a permitted LAN.
@@ -27,12 +28,20 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [ ] Make the host validate shots, strokes, hole completion and final match results.
 - [ ] Build complete course progression and a shared scorecard for all players.
 - [ ] Test 2, 4, 8 and 16 players, packet loss, disconnects and host shutdown.
-- [ ] Add nearby-device discovery inspired by LocalSend: LAN broadcast/multicast discovery, visible nearby peers, pairing confirmation and remembered trusted peers.
-- [ ] Add a peer/node connection graph: direct peer links first, host-coordinated sessions, optional multi-hop relay through consenting peers only when direct paths fail and policy permits.
-- [ ] Evaluate mDNS/DNS-SD and IPv4/IPv6 multicast for discovery; keep a manual IP/room-code fallback.
-- [ ] Add secure peer identity and encrypted sessions (ephemeral key exchange, authenticated pairing, replay protection) before exposing peer relays.
-- [ ] Investigate OS-supported Wi-Fi Direct / Nearby Share integrations per platform. Do not attempt to clone proprietary AirDrop/Quick Share protocols.
+- [ ] Define a transport-independent connection API so gameplay is not coupled to UDP sockets.
+- [ ] Add LocalSend-inspired nearby discovery (mDNS/DNS-SD plus UDP fallback), a visible nearby-room list and explicit pairing.
+- [ ] Define a small, versioned Golfgame connection invitation that carries room ID, candidate endpoints, protocol capabilities and short-lived join credentials; never include long-lived secrets.
+- [ ] Support exporting/importing a .golfinvite file and QR/room-code handoff so LocalSend or another user-chosen sharing app can transfer connection details without players typing IPs.
+- [ ] Validate invitation data, expire it, bind credentials to a room/session, prevent replay and require the host to approve joins.
+- [ ] Probe candidate paths automatically and report whether direct LAN IPv4/IPv6 connectivity is actually reachable; exchanging an IP address alone does not defeat client isolation or firewall rules.
+- [ ] Add an explicit, user-configured SOCKS5 proxy option and document its limitations for UDP/realtime traffic.
+- [ ] Research Tor SOCKS/obfs4 compatibility in an isolated, authorised test environment; measure latency, packet loss and whether the required transport semantics are supported. Do not make Tor/obfs4 a default gameplay path.
+- [ ] Evaluate standard ICE/STUN connectivity negotiation and an explicitly operated/approved relay for networks where direct peer connections are unavailable.
+- [ ] Add connection diagnostics showing discovery method, candidate paths, selected transport, RTT, loss and clear failure reasons without logging credentials.
+- [ ] Add optional peer/node graph experiments only after stable host/client gameplay; relay only authenticated Golfgame messages, with consent, hop limits, loop prevention and rate limits.
+- [ ] Evaluate OS-supported Wi-Fi Direct / Nearby Share integrations per platform. Do not attempt to clone proprietary AirDrop/Quick Share protocols.
 - [ ] Treat Bluetooth as optional discovery/pairing or a platform-supported network transport; do not assume BLE can carry real-time game traffic.
+- [ ] Test multicast-disabled networks, client isolation, VLAN separation, blocked UDP, proxy-only access and permitted relay scenarios. Respect network-owner policies; do not disguise traffic or bypass access controls.
 
 ## Polish and release
 
@@ -44,4 +53,4 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Known limitations
 
-The imported game still simulates only one visible ball per client. The lobby and course-start signal are networked, but remote clients are not yet rendered as separate balls or included in a shared collision/shot simulation. The Windows executable compiles, but Windows hosted-runner runtime capture has crashed before creating a window. Linux Mesa/Xvfb captures are being added as a reliable shared-renderer/UI check; real Windows and multi-PC playtesting remain outstanding.
+The imported game still simulates only one visible ball per client. The lobby and course-start signal are networked, but remote clients are not yet rendered as separate balls or included in a shared collision/shot simulation. The host currently relays client-reported state and is not an authoritative or secure public-internet protocol. The latest full CI run failed during Windows and Linux Open-Golf configuration; the Linux networking-only build and localhost smoke test passed. Do not describe the full game build or multiplayer gameplay as verified until those checks pass.
