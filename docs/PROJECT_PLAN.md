@@ -2,95 +2,98 @@
 
 ## Product direction
 
-A compact, match-based multiplayer minigolf game inspired by the minigolf minigame in GMod Tower. This is **not** the full Tower/Plaza social hub. Players join a match and are represented by golf balls. There are no golfer characters, humanoid avatars, walking animations or lobby world.
+A compact, match-based multiplayer minigolf game inspired by the minigolf minigame in GMod Tower. This is **not** the full Tower/Plaza social hub. Players join a match and are represented by their golf balls.
 
 ## Locked-in targets
 
 - Portable Windows x64 executable, distributed as a ZIP with no installer.
-- Native C/CMake and a small runtime footprint; no Godot runtime.
-- Current graphical client: native Win32 + system OpenGL 1.1/GLU; no heavyweight engine runtime.
-- Open-Golf remains a research/reference option for custom ball physics and level editing, but is not vendored into the current build.
+- Native C/CMake and a small runtime footprint; no heavyweight engine runtime.
+- Current graphical client: native Win32 + system OpenGL 1.1/GLU.
 - Low-poly, colourful courses with exaggerated, readable obstacles.
 - Angled third-person camera following the active ball.
-- 2-16 players per match.
-- Simultaneous minigolf: each player can putt at the same time.
+- 2-16 players per match, including the host.
+- Simultaneous minigolf: every player may aim and putt at the same time.
 - Player identity is expressed through ball colour, optional hat/accessory and trail.
 - Win progression unlocks cosmetics only; no physics upgrades.
+- Original art and sound. Do not reuse proprietary GMod Tower or Tower Unite content.
 
-## First playable slice
+## Current implementation status
 
-1. Compact menu with Host, Find Match, Join by IP and Settings. No Plaza.
-2. Rooms support up to 16 players.
-3. One compact low-poly course with a complete start-to-finish match.
-4. One golf ball per player, labelled by player name and coloured for easy identification.
-5. Aim, power control, shot preview and camera orbit/follow.
-6. Everybody may shoot independently; the host relays ball states and tracks the match.
-7. Scorecard and results screen show all players and the lowest stroke count.
-8. Obstacles include ramps, banked turns, moving platforms, bumpers and a water hazard.
+The repository has a working native graphical **prototype** and a separate C11 UDP networking **prototype**.
 
-## Networking
+### Implemented in the repository
 
-### Transport order
+- C11 networking library and command-line demo.
+- UDP LAN discovery, direct IPv4/hostname join, room advertisement and a 16-player cap.
+- Basic leave/timeout handling, periodic player snapshots and match-start message/state.
+- Ball-only player network records with position, rotation, colour, hat/trail IDs, strokes and flags.
+- Native Win32 graphical target using system OpenGL 1.1 and GLU.
+- Basic menu/lobby flow, one compact low-poly demo course, ball aiming/putting and simple local ball physics.
+- Initial ball colour, hat and trail customisation with local profile.ini persistence.
+- Windows build/package workflow and Linux networking smoke-test workflow.
 
-- **LAN discovery:** UDP broadcast within the local IPv4 segment. Implemented in the prototype.
-- **Direct join:** IPv4 or hostname, UDP port 27890. Implemented in the prototype.
-- **Internet relay:** later, only using a service and traffic explicitly permitted by the network owner.
-- **Bluetooth:** optional future Windows-native adapter; pairing and device support make it a separate integration.
+### Prototype limitations that must remain visible in planning
 
-Managed networks can use client isolation, VLANs, endpoint rules and firewalls. Those can block LAN traffic regardless of the game. The project will report connection failures rather than disguise traffic or bypass network controls.
+- The graphical game has not yet been confirmed through a real Windows runtime play-test in this project workflow. CI compilation/package success is not runtime verification.
+- The course is one demo hole, not an 18-hole course system.
+- Physics and obstacle interactions are basic. Verify each obstacle's collision behaviour before calling it complete.
+- The host currently relays client-reported ball states; it is not authoritative or secure against modified clients.
+- Remote-ball interpolation, full scorecard/match flow, robust camera/spectating, reconnect handling and multi-machine 2-16 player testing remain incomplete.
+- The Linux job builds/tests the networking demo, not the Windows graphical game.
+- Internet relay and native Bluetooth transport are not implemented.
 
-### Match authority
+## Architecture
 
-Everybody putts simultaneously. Each client initially simulates its own ball and sends ball state; the host relays snapshots. Host-authoritative shot validation and score verification are later hardening tasks. Cosmetic IDs can be replicated, but unlock ownership is not authenticated in this prototype.
+- src/desktop/win_main.c: native Win32 window, UI, OpenGL rendering, input, prototype course/physics and local profile.
+- src/network/tg_network.h: public networking API and shared room/player structures.
+- src/network/tg_network.c: UDP transport, packet definitions, discovery, join/leave, snapshots and match-start state.
+- src/demo/net_demo.c: command-line networking test client.
+- CMakeLists.txt: CMake targets and platform-specific libraries.
+- .github/workflows/build.yml: Windows build/package and Linux build/smoke test.
+- scripts/: local build/test helpers.
+- docs/: detailed product, course, HUD, cosmetic and research notes.
 
-Before public release, add packet sequence numbers, rate limits, stronger peer validation, protocol negotiation, host-side shot/score validation and reconnect handling.
+Open-Golf remains an optional research reference, not a dependency or the active implementation plan. No Open-Golf source or assets are vendored in this repository.
 
 ## Roadmap
 
-### M0 - transport prototype
+### P0 - Verify the existing prototype
 
-- [x] Standalone C11 networking library.
-- [x] UDP LAN discovery and room advertisement.
-- [x] Direct IPv4/hostname join.
-- [x] 16-player room cap and periodic snapshots.
-- [x] Basic leave and timeout handling.
-- [x] Ball-only player state: ball position, colour, hat ID and trail ID.
-- [ ] Windows-to-Windows and school-network tests.
+- [x] Add the native Win32/OpenGL graphical prototype.
+- [x] Add the initial menu, lobby, one-hole course and basic ball controls.
+- [x] Add the C11 UDP room/network prototype and 16-player data model.
+- [x] Add Windows build/package CI and Linux localhost network smoke test.
+- [ ] Launch and manually test the graphical client on Windows.
+- [ ] Test actual Windows-to-Windows LAN discovery and direct joining.
 
-### M1 - Open-Golf integration
+### P1 - Make one complete multiplayer match
 
-- Integrate the network library with Open-Golf's Windows target.
-- Preserve upstream MIT and third-party notices.
-- Adapt the single-ball game state to one ball record per match player.
-- Add Host/Find Match/Join by IP controls to the existing menu.
-- Render remote golf balls and their cosmetics.
-- Implement simultaneous ball movement, score tracking and match completion.
+- [ ] Finish shot input, ball physics and obstacle collision behaviour.
+- [ ] Add smooth interpolation for remote balls and reliable match state.
+- [ ] Make the host validate shots, strokes, hole completion and results.
+- [ ] Complete player scoreboard and results UI for all players.
+- [ ] Handle disconnects, host exit and recoverable connection errors.
 
-### M2 - first playable match
+### P2 - Build the full course experience
 
-- One polished low-poly course.
-- 2-16 coloured golf balls, labels and a shared scorecard.
-- Ball aiming, shooting, camera orbit and follow.
-- Spectating, scorecard and match results.
-- No golfer/avatar models.
+- [ ] Create data-driven hole definitions and course loading.
+- [ ] Add 18-hole progression, par values and cumulative scorecard.
+- [ ] Award match wins once after the full course and use verified wins for cosmetic unlocks.
+- [ ] Add multiple original themed courses and more obstacle types.
+- [ ] Add spectating and polished camera follow/orbit controls.
 
-### M3 - cosmetics and progression
+### P3 - Reliability and release
 
-- Unlock colours, hats and trails with wins/milestones.
-- Save a versioned local profile.
-- Validate unlocks through trusted profile/match state, not a client's claim.
-- Keep cosmetic assets small and data-driven.
+- [ ] Test 2, 4, 8 and 16 players on real networks.
+- [ ] Harden the protocol with sequence IDs, timestamps, rate limits, validation, defined serialization and compatibility handling.
+- [ ] Add robust reconnect and host-shutdown handling.
+- [ ] Version the local profile format and keep cosmetics visual-only.
+- [ ] Measure release ZIP size and verify a clean portable launch on supported Windows versions.
 
-### M4 - reliability and packaging
+### P4 - Optional additions
 
-- Test 2, 4, 8 and 16 players, packet loss, disconnects and host exits.
-- Add sequence IDs, rate limiting and protocol compatibility checks.
-- Strip editor/debug-only code from Release.
-- Measure the portable ZIP size on actual builds.
+- [ ] Approved internet relay, only where the network owner permits the service and traffic.
+- [ ] Experimental native Windows Bluetooth transport if it is worth the complexity.
+- [ ] Course editor, extra mutators and additional polish after the core match is reliable.
 
-### M5 - optional additions
-
-- Approved internet relay, then experimental Bluetooth if worth maintaining.
-- More short courses, mutators and eventually a simple course editor.
-
-Upstream candidate: https://github.com/mgerdes/Open-Golf
+For the short actionable list, see TODO.md. Agent/contributor workflow rules are in AGENTS.md.
