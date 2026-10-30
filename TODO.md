@@ -12,7 +12,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Build the Linux Open-Golf client and launch its Sokol window under Mesa/Xvfb.
 - [x] Fix the upstream path-extension overflow and inspect the main-menu, course-select, gameplay and network-console screenshots.
 - [x] Add a player-facing Multiplayer panel to the main menu with LAN host/discovery, direct address join, room list and lobby controls.
-- [ ] Verify the new Host Lobby screenshot and adjust its automated click target if needed.
+- [ ] Verify the new Host Lobby screenshot after blank-frame retries and the adjusted click coordinate.
 - [ ] Check whether the Open-Golf path-extension fix resolves the Windows hosted-runner access violation (0xC0000005), then test the actual Windows game on a physical Windows PC.
 - [x] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI.
 - [ ] Test two Windows PCs on a permitted LAN.

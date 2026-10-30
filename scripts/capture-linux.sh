@@ -95,17 +95,23 @@ sleep 2
 capture() {
     local name="$1"
     local path="$SHOT_DIR/$name"
-    timeout 15s xwd -silent -id "$WINDOW_ID" -out "$path.xwd"
-    timeout 15s convert "$path.xwd" "$path"
-    rm -f "$path.xwd"
-    local dimensions bytes
-    dimensions="$(identify -format '%wx%h' "$path")"
-    bytes="$(stat -c '%s' "$path")"
-    if [[ "$bytes" -lt 5000 ]]; then
-        echo "Screenshot looks suspiciously small: $name ($bytes bytes)" | tee -a "$REPORT"
-        return 1
-    fi
-    echo "$name | $dimensions | $bytes bytes | $(date --iso-8601=seconds)" | tee -a "$REPORT"
+    local dimensions bytes mean attempt
+    for attempt in $(seq 1 12); do
+        timeout 15s xwd -silent -id "$WINDOW_ID" -out "$path.xwd"
+        timeout 15s convert "$path.xwd" "$path"
+        rm -f "$path.xwd"
+        dimensions="$(identify -format '%wx%h' "$path")"
+        bytes="$(stat -c '%s' "$path")"
+        mean="$(convert "$path" -colorspace gray -format '%[fx:mean]' info:)"
+        if [[ "$bytes" -ge 5000 ]] && awk -v value="$mean" 'BEGIN { exit !(value > 0.005) }'; then
+            echo "$name | $dimensions | $bytes bytes | mean=$mean | attempt=$attempt | $(date --iso-8601=seconds)" | tee -a "$REPORT"
+            return 0
+        fi
+        echo "Retrying $name: blank/early frame ($bytes bytes, mean=$mean), attempt $attempt/12" | tee -a "$REPORT"
+        sleep 1
+    done
+    echo "No rendered frame was captured for $name after 12 attempts." | tee -a "$REPORT"
+    return 1
 }
 
 click_at() {
@@ -118,7 +124,7 @@ sleep 6
 capture "01-main-menu.png"
 
 # Host a real local room from the new front-end multiplayer panel.
-click_at 1005 140
+click_at 1005 178
 sleep 1
 capture "02-host-lobby.png"
 

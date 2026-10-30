@@ -25,7 +25,11 @@ static const char *status_name(tg_net_status status) {
 }
 
 int golf_mp_host(const char *player_name, const char *room_name) {
-    return multiplayer_ready ? tg_net_host(player_name, room_name, TG_NET_MAX_PLAYERS) : 0;
+    int ok = multiplayer_ready ? tg_net_host(player_name, room_name, TG_NET_MAX_PLAYERS) : 0;
+    fprintf(stderr, "[golfgame] Host LAN room '%s': %s\\n",
+        room_name ? room_name : "", ok ? "hosting" : "failed");
+    fflush(stderr);
+    return ok;
 }
 
 int golf_mp_discover(void) {

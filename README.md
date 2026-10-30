@@ -46,7 +46,7 @@ The Linux build uses the upstream Sokol OpenGL 3.3 backend.
 
 ## Visual CI logs
 
-Windows CI compiles and packages the actual Windows executable. A separate Linux visual job builds the same Open-Golf game with Mesa software OpenGL under Xvfb, then captures startup, main menu, course selection, gameplay and network diagnostics screens. It uploads PNGs, runtime stdout/stderr and a capture report under the golfgame-visual-logs artifact.
+Windows CI compiles and packages the actual Windows executable. A separate Linux visual job builds the same Open-Golf game with Mesa software OpenGL under Xvfb, then captures startup, main menu, hosted LAN lobby, course selection, gameplay and network diagnostics screens. It uploads PNGs, runtime stdout/stderr and a capture report under the golfgame-visual-logs artifact.
 
 The Linux captures validate the shared renderer/UI, course loading and the main-menu multiplayer lobby, including creation of a local room. A configure-time patch bounds two unsafe Open-Golf path-extension copies that previously caused a startup stack-buffer overflow. They do not replace a real Windows hardware/runtime test.
 
