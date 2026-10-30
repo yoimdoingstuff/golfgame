@@ -8,24 +8,33 @@ $game = Join-Path $repoRoot $GamePath
 $work = Join-Path $repoRoot $WorkingDirectory
 $logRoot = Join-Path $repoRoot "logs"
 $shotRoot = Join-Path $logRoot "screenshots"
+
 if (-not (Test-Path $game)) { throw "Game executable not found: $game" }
 if (-not (Test-Path (Join-Path $work "data/static_data.static_data"))) {
     throw "Runtime data is missing beside the executable. Expected $work\data"
 }
 Remove-Item $logRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item $shotRoot -ItemType Directory -Force | Out-Null
+
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -TypeDefinition @"
 using System;
+using System.Text;
 using System.Runtime.InteropServices;
+
 public static class GolfgameWin32 {
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X; public int Y; }
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr FindWindow(string className, string windowName);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hwnd, StringBuilder text, int maxCount);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int maxCount);
     [DllImport("user32.dll")]
     public static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")]
@@ -33,23 +42,10 @@ public static class GolfgameWin32 {
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")]
-    public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    public static extern bool GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
     [DllImport("user32.dll")]
     public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
-    public static IntPtr FindWindowForProcess(int processId) {
-        IntPtr found = IntPtr.Zero;
-        EnumWindows(delegate(IntPtr hwnd, IntPtr lParam) {
-            uint ownerPid;
-            GetWindowThreadProcessId(hwnd, out ownerPid);
-            if (ownerPid == (uint)processId && IsWindowVisible(hwnd)) {
-                found = hwnd;
-                return false;
-            }
-            return true;
-        }, IntPtr.Zero);
-        return found;
-    }
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")]
@@ -58,57 +54,102 @@ public static class GolfgameWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
     [DllImport("user32.dll")]
     public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extraInfo);
+
+    public static string WindowClass(IntPtr hwnd) {
+        StringBuilder value = new StringBuilder(256);
+        GetClassName(hwnd, value, value.Capacity);
+        return value.ToString();
+    }
+    public static string WindowTitle(IntPtr hwnd) {
+        StringBuilder value = new StringBuilder(512);
+        GetWindowText(hwnd, value, value.Capacity);
+        return value.ToString();
+    }
+    public static IntPtr FindGameWindowForProcess(int processId) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr hwnd, IntPtr lParam) {
+            uint ownerPid;
+            GetWindowThreadProcessId(hwnd, out ownerPid);
+            if (ownerPid == (uint)processId && IsWindowVisible(hwnd) &&
+                WindowClass(hwnd) != "ConsoleWindowClass") {
+                found = hwnd;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+    public static string DescribeWindowsForProcess(int processId) {
+        StringBuilder report = new StringBuilder();
+        EnumWindows(delegate(IntPtr hwnd, IntPtr lParam) {
+            uint ownerPid;
+            GetWindowThreadProcessId(hwnd, out ownerPid);
+            if (ownerPid == (uint)processId) {
+                report.Append("hwnd=").Append(hwnd)
+                    .Append(" visible=").Append(IsWindowVisible(hwnd))
+                    .Append(" class='").Append(WindowClass(hwnd))
+                    .Append("' title='").Append(WindowTitle(hwnd)).AppendLine("'");
+            }
+            return true;
+        }, IntPtr.Zero);
+        return report.ToString();
+    }
+    public static int[] GetClientScreenBounds(IntPtr hwnd) {
+        RECT rect;
+        POINT origin = new POINT();
+        if (!GetClientRect(hwnd, out rect)) return null;
+        if (!ClientToScreen(hwnd, ref origin)) return null;
+        return new int[] { origin.X, origin.Y, rect.Right - rect.Left, rect.Bottom - rect.Top };
+    }
 }
 "@
+
 $stdout = Join-Path $logRoot "runtime-stdout.txt"
 $stderr = Join-Path $logRoot "runtime-stderr.txt"
 $transcript = Join-Path $logRoot "capture-report.txt"
 "Started $(Get-Date -Format o)" | Set-Content $transcript
 "Executable: $game" | Add-Content $transcript
 "Working directory: $work" | Add-Content $transcript
+
 $proc = Start-Process -FilePath $game -WorkingDirectory $work -PassThru -WindowStyle Normal -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 "Process id: $($proc.Id)" | Add-Content $transcript
+
 function Get-GameWindow {
     $handle = [IntPtr]::Zero
     for ($i = 0; $i -lt 80 -and $handle -eq [IntPtr]::Zero; $i++) {
         $proc.Refresh()
         if ($proc.HasExited) {
-            "Process exited before a visible window was found. Exit code: $($proc.ExitCode)" | Add-Content $transcript
+            "Process exited before a visible game window was found. Exit code: $($proc.ExitCode)" | Add-Content $transcript
             break
         }
-        $handle = $proc.MainWindowHandle
-        if ($handle -eq [IntPtr]::Zero) {
-            $handle = [GolfgameWin32]::FindWindow($null, "Golfgame")
-        }
-        if ($handle -eq [IntPtr]::Zero) {
-            $handle = [GolfgameWin32]::FindWindowForProcess($proc.Id)
-        }
+        $handle = [GolfgameWin32]::FindGameWindowForProcess($proc.Id)
         if ($handle -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 250 }
     }
     $proc.Refresh()
-    "Process state after window search: HasExited=$($proc.HasExited); ExitCode=$($proc.ExitCode); MainWindowTitle='$($proc.MainWindowTitle)'; MainWindowHandle=$($proc.MainWindowHandle)" | Add-Content $transcript
+    "Process state: HasExited=$($proc.HasExited); ExitCode=$($proc.ExitCode); MainWindowTitle='$($proc.MainWindowTitle)'; MainWindowHandle=$($proc.MainWindowHandle)" | Add-Content $transcript
+    "Windows owned by process $($proc.Id):" | Add-Content $transcript
+    [GolfgameWin32]::DescribeWindowsForProcess($proc.Id) | Add-Content $transcript
+    if ($handle -ne [IntPtr]::Zero) {
+        "Selected game window: class='$([GolfgameWin32]::WindowClass($handle))'; title='$([GolfgameWin32]::WindowTitle($handle))'; handle=$handle" | Add-Content $transcript
+    }
     return $handle
 }
+
 function Get-ClientOrigin([IntPtr]$handle) {
-    $point = New-Object -TypeName 'GolfgameWin32+POINT'
-    $rect = New-Object -TypeName 'GolfgameWin32+RECT'
-    if (-not [GolfgameWin32]::GetClientRect($handle, [ref]$rect)) {
-        throw "Could not read game client rectangle."
+    $bounds = [GolfgameWin32]::GetClientScreenBounds($handle)
+    if ($null -eq $bounds -or $bounds.Length -ne 4 -or $bounds[2] -lt 100 -or $bounds[3] -lt 100) {
+        throw "Could not read a valid game client rectangle for window $handle (class='$([GolfgameWin32]::WindowClass($handle))', title='$([GolfgameWin32]::WindowTitle($handle))')."
     }
-    [void][GolfgameWin32]::ClientToScreen($handle, [ref]$point)
-    return @{
-        X = $point.X; Y = $point.Y
-        Width = $rect.Right - $rect.Left
-        Height = $rect.Bottom - $rect.Top
-    }
+    return @{ X = $bounds[0]; Y = $bounds[1]; Width = $bounds[2]; Height = $bounds[3] }
 }
+
 function Capture-Game([IntPtr]$handle, [string]$name) {
     $client = Get-ClientOrigin $handle
     $requested = [System.Drawing.Rectangle]::new($client.X, $client.Y, $client.Width, $client.Height)
     $desktop = [System.Windows.Forms.SystemInformation]::VirtualScreen
     $bounds = [System.Drawing.Rectangle]::Intersect($requested, $desktop)
     if ($bounds.Width -lt 100 -or $bounds.Height -lt 100) {
-        throw "Game window is not visible on the desktop; refusing to save an empty screenshot."
+        throw "Game window is outside the visible desktop; refusing to save an empty screenshot."
     }
     $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
@@ -124,6 +165,7 @@ function Capture-Game([IntPtr]$handle, [string]$name) {
         $bitmap.Dispose()
     }
 }
+
 function Click-Game([IntPtr]$handle, [int]$x, [int]$y) {
     $client = Get-ClientOrigin $handle
     [void][GolfgameWin32]::SetCursorPos($client.X + $x, $client.Y + $y)
@@ -133,44 +175,47 @@ function Click-Game([IntPtr]$handle, [int]$x, [int]$y) {
     [GolfgameWin32]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 250
 }
+
 function Tap-Grave([IntPtr]$handle) {
     [void][GolfgameWin32]::SetForegroundWindow($handle)
     [GolfgameWin32]::keybd_event(0xC0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 100
     [GolfgameWin32]::keybd_event(0xC0, 0, 0x0002, [UIntPtr]::Zero)
 }
+
 try {
     $window = Get-GameWindow
     if ($window -eq [IntPtr]::Zero) {
         $proc.Refresh()
         if ($proc.HasExited) {
-            throw "Game process exited with code $($proc.ExitCode) before creating a visible window. Check runtime-stdout.txt and runtime-stderr.txt."
+            throw "Game process exited with code $($proc.ExitCode) before creating its game window. Check logs/capture-report.txt and runtime logs."
         }
-        throw "Game process $($proc.Id) is still running but has no visible top-level window. Check the capture report and runtime logs."
-    }
-    if (-not [GolfgameWin32]::IsWindowVisible($window)) {
-        throw "The game window handle was found but the window is not visible."
+        throw "Game process $($proc.Id) has no visible non-console window. Check logs/capture-report.txt."
     }
     [void][GolfgameWin32]::SetForegroundWindow($window)
-    Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
     Capture-Game $window "00-startup.png"
-    Start-Sleep -Seconds 7
+    Start-Sleep -Seconds 6
     Capture-Game $window "01-main-menu.png"
-    # Open the original Open-Golf course selector.
+
+    # Open the upstream course selector.
     Click-Game $window 640 540
     Start-Sleep -Seconds 1
     Capture-Game $window "02-course-select.png"
+
     # Select the first course tile in the default 1280x720 layout.
     Click-Game $window 424 246
     Start-Sleep -Seconds 6
     Capture-Game $window "03-course-gameplay.png"
-    # The Multiplayer tab is available in the in-game debug console (grave key).
+
+    # Open the debug console and select the Multiplayer diagnostics tab.
     Tap-Grave $window
     Start-Sleep -Seconds 1
     Capture-Game $window "04-debug-console.png"
     Click-Game $window 225 48
     Start-Sleep -Milliseconds 500
     Capture-Game $window "05-multiplayer-tab.png"
+
     "Screenshots captured successfully." | Add-Content $transcript
 } finally {
     if ($proc -and -not $proc.HasExited) {
