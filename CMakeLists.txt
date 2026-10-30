@@ -51,12 +51,16 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
     target_link_libraries(golf PRIVATE tg_network)
     set_target_properties(golf PROPERTIES OUTPUT_NAME "golfgame")
 
-    add_custom_command(TARGET golf POST_BUILD
+    # CMake only permits TARGET POST_BUILD declarations in the directory
+    # where the target was created. Open-Golf creates golf in its own
+    # subdirectory, so stage the data through a normal build dependency.
+    add_custom_target(golfgame_runtime_data
         COMMAND "${CMAKE_COMMAND}"
             "-DOPENGOLF_DATA_DIR=${OPENGOLF_DIR}/data"
-            "-DDESTINATION_DIR=$<TARGET_FILE_DIR:golf>/data"
+            "-DDESTINATION_DIR=${CMAKE_BINARY_DIR}/data"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/copy-opengolf-data.cmake"
         COMMENT "Copying Open-Golf course and runtime data")
+    add_dependencies(golf golfgame_runtime_data)
 elseif(WIN32)
     message(FATAL_ERROR "The Windows game target requires GOLFGAME_BUILD_OPEN_GOLF=ON.")
 else()
