@@ -160,9 +160,11 @@ void golf_mp_ui_update(void) {
 
         if (info.status == TG_NET_STATUS_OFFLINE ||
             info.status == TG_NET_STATUS_SEARCHING) {
-            igInputText("Player name", mp_player_name, sizeof(mp_player_name),
+            igText("PLAYER NAME");
+            igInputText("##mp_player_name", mp_player_name, sizeof(mp_player_name),
                 (ImGuiInputTextFlags)0, NULL, NULL);
-            igInputText("Room name", mp_room_name, sizeof(mp_room_name),
+            igText("ROOM NAME");
+            igInputText("##mp_room_name", mp_room_name, sizeof(mp_room_name),
                 (ImGuiInputTextFlags)0, NULL, NULL);
 
             if (igButton("Host LAN room", (ImVec2){145.0f, 0.0f})) {
@@ -175,7 +177,7 @@ void golf_mp_ui_update(void) {
 
             igSeparator();
             igText("JOIN BY ADDRESS");
-            igInputTextWithHint("Address", "192.168.1.10",
+            igInputTextWithHint("##mp_direct_address", "192.168.1.10",
                 mp_direct_address, sizeof(mp_direct_address),
                 (ImGuiInputTextFlags)0, NULL, NULL);
             if (igButton("Join address", (ImVec2){298.0f, 0.0f})) {

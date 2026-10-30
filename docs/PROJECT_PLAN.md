@@ -29,13 +29,14 @@ The graphical client is based on upstream Open-Golf. The upstream UI, Sokol rend
 - Upstream main menu, course selector, course rendering, level assets and physics.
 - C11 UDP networking library and command-line demo.
 - Network module lifecycle integrated into the game application.
-- Multiplayer diagnostics tab in the built-in debug console, with host, LAN discovery, localhost join, start and leave controls.
+- Main-menu Multiplayer panel with player/room fields, LAN host/discovery, direct-address join, discovered-room joins, player roster, host-only start and leave controls.
+- Multiplayer diagnostics tab in the built-in debug console.
 - Windows build/package workflow and Linux localhost network smoke-test workflow.
 - Linux Mesa/Xvfb visual-capture automation. The first run created a Sokol window but aborted while indexing assets due to an upstream stack-buffer overflow in the path-extension helper. A guarded CMake-time fix is now added; the next visual run must verify it.
 
 ### Important limitations
 
-- The diagnostics panel is not yet the normal player-facing multiplayer menu/lobby.
+- The player-facing main-menu lobby is now present, and the host's match-start signal starts the same first course on connected clients. Remote balls are still not rendered or simulated in one shared world.
 - Open-Golf gameplay still maintains a single golf ball. Remote players are not yet integrated into its physics, input, rendering, camera and scoring systems.
 - The current UDP host relays client-reported state and is not authoritative or secure against modified clients.
 - Multi-machine 2-16 player tests have not yet been completed.
@@ -65,7 +66,8 @@ The graphical client is based on upstream Open-Golf. The upstream UI, Sokol rend
 - [x] Add Windows build/package and Linux networking CI.
 - [ ] Build the Linux visual target and inspect screenshots from Mesa/Xvfb.
 - [ ] Diagnose the Windows hosted-runner startup crash and test on physical Windows hardware.
-- [ ] Add standard host/find/join/lobby controls to the actual front-end UI.
+- [x] Add standard host/find/join/lobby controls to the actual front-end UI.
+- [ ] Verify the automated Host Lobby screenshot and adjust UI spacing/capture coordinates.
 - [ ] Test on a physical Windows machine.
 
 ### P1 - Simultaneous multiplayer

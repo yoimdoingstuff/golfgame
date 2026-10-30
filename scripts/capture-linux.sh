@@ -117,22 +117,27 @@ capture "00-startup.png"
 sleep 6
 capture "01-main-menu.png"
 
+# Host a real local room from the new front-end multiplayer panel.
+click_at 1005 140
+sleep 1
+capture "02-host-lobby.png"
+
 # Open the upstream course selector.
 click_at 640 540
 sleep 1
-capture "02-course-select.png"
+capture "03-course-select.png"
 
 # Select the first course tile in the default course-picker layout.
 click_at 424 246
 sleep 6
-capture "03-course-gameplay.png"
+capture "04-course-gameplay.png"
 
 # Open the debug console, then choose the Golfgame Multiplayer tab.
 timeout 10s xdotool key --window "$WINDOW_ID" grave
 sleep 1
-capture "04-debug-console.png"
+capture "05-debug-console.png"
 click_at 225 48
-capture "05-multiplayer-tab.png"
+capture "06-multiplayer-tab.png"
 
 COUNT="$(find "$SHOT_DIR" -maxdepth 1 -type f -name '*.png' | wc -l)"
 echo "Captured $COUNT PNG screenshots." | tee -a "$REPORT"

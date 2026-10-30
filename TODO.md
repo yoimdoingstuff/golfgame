@@ -10,9 +10,11 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Add Windows and Linux CI build jobs plus an always-uploaded Linux visual-log artifact.
 - [x] Add labelled visual capture checkpoints using Mesa software OpenGL under Xvfb.
 - [x] Build the Linux Open-Golf client and launch its Sokol window under Mesa/Xvfb.
-- [ ] Verify the upstream path-extension overflow fix and inspect main-menu, course-select, gameplay and network-console screenshots.
+- [x] Fix the upstream path-extension overflow and inspect the main-menu, course-select, gameplay and network-console screenshots.
+- [x] Add a player-facing Multiplayer panel to the main menu with LAN host/discovery, direct address join, room list and lobby controls.
+- [ ] Verify the new Host Lobby screenshot and adjust its automated click target if needed.
 - [ ] Check whether the Open-Golf path-extension fix resolves the Windows hosted-runner access violation (0xC0000005), then test the actual Windows game on a physical Windows PC.
-- [ ] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI. The current controls are diagnostics-only.
+- [x] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI.
 - [ ] Test two Windows PCs on a permitted LAN.
 
 ## Multiplayer gameplay
@@ -34,4 +36,4 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Known limitations
 
-The imported game is still single-player gameplay. The UDP module is initialised and updated, and its diagnostic controls can host/discover/join/start/leave rooms, but remote clients are not yet wired into Open-Golf's single-ball collision and rendering systems. The Windows executable compiles, but Windows hosted-runner runtime capture has crashed before creating a window. Linux Mesa/Xvfb captures are being added as a reliable shared-renderer/UI check; real Windows and multi-PC playtesting remain outstanding.
+The imported game still simulates only one visible ball per client. The lobby and course-start signal are networked, but remote clients are not yet rendered as separate balls or included in a shared collision/shot simulation. The Windows executable compiles, but Windows hosted-runner runtime capture has crashed before creating a window. Linux Mesa/Xvfb captures are being added as a reliable shared-renderer/UI check; real Windows and multi-PC playtesting remain outstanding.

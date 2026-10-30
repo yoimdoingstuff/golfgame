@@ -15,7 +15,7 @@ The submodule is deliberate. It avoids copying a large third-party tree into Gol
 
 The root CMake project creates tg_network and then runs `scripts/patch-opengolf-file.cmake` before adding vendor/Open-Golf. This idempotent patch replaces two unsafe full-buffer `strncpy` calls in upstream `golf_file_append_extension()` with correctly sized `snprintf` calls. The original code copied `GOLF_FILE_MAX_PATH` bytes beginning at `file.path + path_len`, corrupting stack memory during the initial asset scan. The patch fails closed if the pinned source no longer matches. It modifies only the local submodule worktree during configure, not the pinned upstream revision in Git. It removes upstream's src/golf/main.c from the golf target and substitutes src/integration/opengolf_main.c. That application entry point is derived from upstream main.c, retains the MIT attribution, and calls golf_mp_init(), golf_mp_update() and golf_mp_shutdown() at the correct lifecycle points.
 
-src/integration/golf_multiplayer.c/.h wraps the existing Golfgame UDP API. It is linked to the upstream golf target and adds a Multiplayer diagnostics tab to the built-in ImGui debug console. Press the grave/backtick key to open the debug console. The tab currently exposes basic host, LAN discovery, localhost join, start and leave actions.
+src/integration/golf_multiplayer.c/.h wraps the existing Golfgame UDP API and adds a player-facing ImGui Multiplayer panel to the main menu. It provides player/room name fields, LAN hosting/discovery, direct IPv4/hostname join, discovered room joins, a room roster, host-only Start Match and Leave Room. It also retains a diagnostics tab in the built-in debug console (grave/backtick key). A replicated start flag calls golf_start_level(0) on connected clients. This starts the same course, but remote balls are still not rendered or simulated in a shared physics world.
 
 The Open-Golf UI is data-driven. The build copies upstream data to the runtime build/data folder and changes only the displayed OPEN GOLF title to GOLFGAME in that generated copy. The submodule's original files are not modified by this title override.
 
@@ -35,6 +35,6 @@ The network protocol currently relays client-reported state and is not secure fo
 
 ## Runtime visual checks
 
-scripts/capture-linux.sh launches the Linux game under Xvfb with Mesa software OpenGL. It captures PNG checkpoints for startup/main menu, course selection, gameplay and the multiplayer diagnostics console, then writes screenshots and runtime stdout/stderr under logs/. The build-linux-visual GitHub Actions job uploads the logs directory as golfgame-visual-logs, even when capture fails.
+scripts/capture-linux.sh launches the Linux game under Xvfb with Mesa software OpenGL. It captures PNG checkpoints for startup/main menu, the hosted LAN lobby, course selection, gameplay and the multiplayer diagnostics console, then writes screenshots and runtime stdout/stderr under logs/. The build-linux-visual GitHub Actions job uploads the logs directory as golfgame-visual-logs, even when capture fails.
 
 These screenshots exercise the shared Open-Golf renderer/UI and course loading. They do not test the Windows OpenGL driver or replace manual Windows runtime and two-PC LAN tests.

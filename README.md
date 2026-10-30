@@ -9,7 +9,7 @@ The graphical client uses the upstream Open-Golf engine, course renderer, UI, ph
 - Open-Golf is pinned as a Git submodule under vendor/Open-Golf.
 - The Windows client is built as golfgame.exe with a 1280x720 landscape window.
 - The upstream game's main menu, course selector, course data, renderer, physics, audio and editor code are used.
-- The multiplayer library is linked and its lifecycle is integrated. A Multiplayer diagnostics tab is available in the upstream debug console (press the grave/backtick key); it currently provides basic host, LAN discovery, localhost join, start and leave controls.
+- A front-end Multiplayer panel is available on the main menu with player/room name fields, LAN hosting and discovery, direct-address join, discovered-room join buttons, a player roster, host-only Start Match and Leave Room. The Multiplayer diagnostics tab remains available in the debug console (grave/backtick key).
 - The existing network protocol is still a prototype and remote players are not yet represented as independent Open-Golf physics balls. Linking the library alone does not make the game fully multiplayer.
 
 ## Clone
@@ -48,7 +48,7 @@ The Linux build uses the upstream Sokol OpenGL 3.3 backend.
 
 Windows CI compiles and packages the actual Windows executable. A separate Linux visual job builds the same Open-Golf game with Mesa software OpenGL under Xvfb, then captures startup, main menu, course selection, gameplay and network diagnostics screens. It uploads PNGs, runtime stdout/stderr and a capture report under the golfgame-visual-logs artifact.
 
-The Linux captures validate the shared renderer/UI and course loading. The first runtime launch exposed a stack-buffer overflow in Open-Golf's file-extension helper; a configure-time patch now bounds both path and filename copies. They do not replace a real Windows hardware/runtime test.
+The Linux captures validate the shared renderer/UI, course loading and the main-menu multiplayer lobby, including creation of a local room. A configure-time patch bounds two unsafe Open-Golf path-extension copies that previously caused a startup stack-buffer overflow. They do not replace a real Windows hardware/runtime test.
 
 Open the latest GitHub Actions run and download the golfgame-visual-logs artifact:
 https://github.com/yoimdoingstuff/golfgame/actions

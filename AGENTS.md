@@ -30,7 +30,7 @@ Read this file before making changes.
 - vendor/Open-Golf/src/3rd_party: upstream bundled dependencies.
 - vendor/Open-Golf/data: upstream levels, models, textures, UI data, fonts and audio.
 - src/integration/opengolf_main.c: Golfgame application entry point adapted from upstream main.c. Keep the upstream MIT attribution comment and update it if the upstream source changes.
-- src/integration/golf_multiplayer.c/.h: adapter that initialises, updates and shuts down tg_network, exposes wrapper calls and provides a diagnostics tab.
+- src/integration/golf_multiplayer.c/.h: adapter that initialises, updates and shuts down tg_network, provides the main-menu Multiplayer panel, handles replicated course-start events and retains a diagnostics tab.
 - src/network/tg_network.c/.h: Golfgame's C11 UDP LAN layer.
 - src/demo/net_demo.c: command-line network test tool.
 - src/desktop/win_main.c: old prototype, not the primary game target.
@@ -42,7 +42,7 @@ Read this file before making changes.
 
 ## Multiplayer limitations
 
-Open-Golf's gameplay currently owns one golf ball in one golf_game_t. The Golfgame network module can form rooms and relay ball snapshots, but the upstream collision, input, camera, score and render systems are not converted to multiple simultaneous balls yet. Do not claim the game is fully multiplayer. The next major architectural task is to make ball state per player and feed every ball through the physics/render path while preserving the current single-player game flow as a test mode.
+Open-Golf's gameplay currently owns one golf ball in one golf_game_t. The Golfgame network module can form rooms, synchronise course start and relay ball snapshots, but the upstream collision, input, camera, score and render systems are not converted to multiple simultaneous balls yet. Do not claim the game is fully multiplayer. The next major architectural task is to make ball state per player and feed every ball through the physics/render path while preserving the current single-player game flow as a test mode.
 
 The host currently relays client-reported state. It is not an authoritative or secure public-internet protocol. Treat client input/state as untrusted. Before public play, add sequence numbers, input validation, rate limits, host-side shot/stroke/result verification, robust packet serialisation and reconnect handling.
 
