@@ -1,34 +1,34 @@
 # TODO
 
-Living priority list for the current prototype. Check items off only after the work is implemented and the relevant test has passed. See AGENTS.md before changing code and the project plan for the broader direction.
+Short, current priority list. Check items only when implemented and tested. Read AGENTS.md before changing the code.
 
-## Next up
+## Immediate
 
-- [ ] **Run the Windows game for real.** Launch the latest golfgame.exe, test menu/lobby/course input, resizing, aiming, shooting, collisions, cosmetics and results. Fix any runtime-only problems.
-- [ ] **Test two Windows PCs on a permitted LAN.** Verify discovery, direct-IP join, simultaneous shots, remote ball updates, disconnects and host exit. Record network restrictions separately from game bugs.
-- [ ] **Make multiplayer state trustworthy.** Validate packet sizes and player input, add sequence numbers/timestamps and rate limits, reject impossible ball states, and move shot/stroke/result authority to the host.
-- [ ] **Smooth remote players.** Buffer and interpolate remote ball snapshots so other players do not jump between network updates.
-- [ ] **Build the real multi-hole match flow.** Add data-driven hole loading, hole/par definitions, cumulative per-player scores, a full scorecard and match results. Award a win once at match completion, not once per hole.
-- [ ] **Make obstacles fully playable.** Add and test collision/trigger behaviour for ramps, bumpers, moving arms, tunnels and hazards. A rendered obstacle is not complete until it affects gameplay correctly.
-- [ ] **Finish camera and scoreboard controls.** Add reliable camera follow/orbit/reset and spectating, and show all players without silently truncating the scoreboard.
+- [x] Replace the homemade Win32/OpenGL UI and demo course with the pinned Open-Golf game, renderer, UI, physics and level data.
+- [x] Link the Golfgame UDP networking library into the Open-Golf application lifecycle.
+- [x] Add a Multiplayer diagnostics tab to the Open-Golf debug console.
+- [x] Capture main-menu, course-select, gameplay and network-console screenshots in Windows CI and upload them as an artifact.
+- [ ] Inspect the first CI screenshots and fix any missing assets, scaling issues, blank frames or runtime errors they reveal.
+- [ ] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI. The current controls are diagnostics-only.
+- [ ] Test the game on a real Windows desktop, then test two Windows PCs on a permitted LAN.
 
-## Then
+## Multiplayer gameplay
 
-- [ ] Test 2, 4, 8 and 16 players; include packet loss, latency, late packets, disconnects and host shutdown.
-- [ ] Add reconnect and clear user-facing connection/error states.
-- [ ] Add versioned profile storage and validate cosmetic unlocks from trusted match results.
-- [ ] Add original sound effects/music and polish ball trails, hats, course props and UI without bloating the portable build.
-- [ ] Create several original themed holes and a maintainable course data format; consider a course editor only after the runtime format is stable.
-- [ ] Measure and track the final Windows ZIP size; keep the game portable and avoid unnecessary runtime dependencies.
-- [ ] Consider an internet relay only when the service and traffic are explicitly permitted. Consider Bluetooth only if a maintainable Windows implementation is practical.
+- [ ] Adapt Open-Golf's single golf_game_t ball state into one independent physics/simulation state per connected player.
+- [ ] Render remote balls with their names and cosmetic IDs; interpolate snapshots smoothly.
+- [ ] Keep simultaneous putting. Do not add turn queues or a current-player turn system.
+- [ ] Make the host validate shots, strokes, hole completion and final match results.
+- [ ] Build complete course progression and a shared scorecard for all players.
+- [ ] Test 2, 4, 8 and 16 players, packet loss, disconnects and host shutdown.
 
-## Not currently implemented
+## Polish and release
 
-- Secure host-authoritative gameplay and public-internet security.
-- Remote-ball interpolation and robust reconnect handling.
-- Full 18-hole course progression and cumulative scorecard.
-- Tested multi-machine 2-16 player gameplay.
-- Internet relay and native Windows Bluetooth transport.
-- Full audio, polished course library and course editor.
+- [ ] Replace Open-Golf title/branding where needed with original Golfgame branding and a coherent multiplayer flow.
+- [ ] Add ball colours, hats and trails to the Open-Golf ball renderer without affecting physics.
+- [ ] Add persistent cosmetic unlocks based on verified match wins.
+- [ ] Review bundled third-party notices and measure the portable release ZIP size.
+- [ ] Consider an internet relay only when the service and traffic are explicitly permitted. Bluetooth remains optional.
 
-Do not mark any of the above complete solely because the relevant code compiles.
+## Known limitations
+
+The imported game is still single-player gameplay. The UDP module is initialised and updated, and its diagnostic controls can host/discover/join/start/leave rooms, but remote clients are not yet wired into Open-Golf's single-ball collision and rendering systems. A successful Windows build is not a runtime test; CI screenshots are required evidence, and real multi-PC playtesting remains outstanding.

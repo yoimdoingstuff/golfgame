@@ -1,31 +1,40 @@
-# Open-Golf integration notes
+# Open-Golf integration
 
-The network module is engine-independent and can be added to an Open-Golf working tree without bringing in a new engine. This repository does not redistribute Open-Golf source or assets. Retain the upstream MIT copyright/license notice and all third-party notices when integrating them.
+## Upstream source
 
-## CMake integration
+Golfgame uses Open-Golf as a pinned Git submodule:
 
-Copy `src/network/tg_network.h` and `src/network/tg_network.c` into the upstream source tree, for example under `src/multiplayer/`.
+- Repository: https://github.com/mgerdes/Open-Golf
+- Pinned commit: b9029f1e80c3110ae3d4fc9300854bdaeef96508
+- Licence: MIT, retained at vendor/Open-Golf/LICENSE.
+- Scope: upstream renderer, UI, Sokol application framework, course/level system, physics, assets, audio and editor sources.
 
-```cmake
-add_library(tg_network STATIC src/multiplayer/tg_network.c)
-target_include_directories(tg_network PUBLIC src/multiplayer)
-if(WIN32)
-    target_link_libraries(tg_network PUBLIC ws2_32)
-endif()
-```
+The submodule is deliberate. It avoids copying a large third-party tree into Golfgame's own history and makes upstream provenance/update review straightforward.
 
-Link `tg_network` to the `golf` target in `src/golf/CMakeLists.txt`. The current Windows prototype instead builds its own tiny Win32/OpenGL front end; Open-Golf source is not vendored yet.
+## Build integration
 
-## Integration points
+The root CMake project creates tg_network and then adds vendor/Open-Golf. It removes upstream's src/golf/main.c from the golf target and substitutes src/integration/opengolf_main.c. That application entry point is derived from upstream main.c, retains the MIT attribution, and calls golf_mp_init(), golf_mp_update() and golf_mp_shutdown() at the correct lifecycle points.
 
-- `src/golf/main.c`: initialise networking, call `tg_net_update(dt)` once per frame and shut it down during cleanup.
-- `src/golf/ui.c`: add Host/Find Match/Join by IP to the existing menu. Do not create a 3D lobby.
-- `src/golf/game.h`: add up to 16 match player records, each with its own ball state, strokes, finish flag and cosmetic IDs. The old global ball cannot represent every player.
-- `src/golf/game.c`: extend the single-ball simulation to maintain an independent ball state for every participant. All players putt simultaneously; the host relays snapshots in the first pass.
-- Rendering: draw one ball per player with its colour, optional accessory and optional trail. Do not build golfer avatars.
+src/integration/golf_multiplayer.c/.h wraps the existing Golfgame UDP API. It is linked to the upstream golf target and adds a Multiplayer diagnostics tab to the built-in ImGui debug console. Press the grave/backtick key to open the debug console. The tab currently exposes basic host, LAN discovery, localhost join, start and leave actions.
 
-## Protocol limits
+The Open-Golf UI is data-driven. The build copies upstream data to the runtime build/data folder and changes only the displayed OPEN GOLF title to GOLFGAME in that generated copy. The submodule's original files are not modified by this title override.
 
-The prototype snapshots player ID/name, ball position, strokes, flags, colour, hat ID and trail ID. Cosmetic IDs are display metadata, not verified unlocks.
+## Multiplayer work still required
 
-LAN broadcast is limited to the local IPv4 broadcast segment. Direct join uses UDP port 27890. This is not NAT traversal or an internet relay. The protocol is not a secure public-game protocol yet; add sequence IDs, validation, rate limits, authoritative score logic and protocol negotiation before release. Bluetooth and internet relay are not implemented.
+Open-Golf's game implementation stores one ball in golf_game_t. Full simultaneous multiplayer requires a careful refactor, not just broadcasting the existing one-ball struct:
+
+1. Introduce per-player ball state with position, velocity, orientation, water/out-of-bounds/hole state, stroke count and cosmetic IDs.
+2. Update input/aiming to control only the local player's ball.
+3. Run collision and movement for each active ball against the course and moving obstacles.
+4. Render every ball, with stable player labels and visual-only cosmetics.
+5. Interpolate remote snapshots and avoid letting packet jitter affect local input.
+6. Preserve simultaneous putting; completed balls remain at the cup while others finish.
+7. Make the host authoritative for shot acceptance, strokes, hole completion and course results.
+
+The network protocol currently relays client-reported state and is not secure for public internet use. Do not claim complete multiplayer or public-game security until validation and authority are implemented.
+
+## Runtime visual checks
+
+scripts/capture-windows.ps1 launches build/golfgame.exe from the build directory and captures the main menu, course selector, gameplay and network diagnostics console. It saves PNGs and process logs under logs/. The Windows Actions workflow uploads this directory as golfgame-visual-logs. Download the artifact from the workflow run and inspect it after changes to the renderer, UI, course loading, input or lifecycle.
+
+The screenshot automation is a smoke test, not a substitute for manual testing on a real Windows desktop or testing two separate PCs on a permitted LAN.

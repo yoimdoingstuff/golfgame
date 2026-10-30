@@ -1,4 +1,4 @@
-name: Build
+name: Build and visual checks
 on:
   push:
   pull_request:
@@ -9,27 +9,40 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Configure
         run: cmake -S . -B build -A x64
-      - name: Build
-        run: cmake --build build --config Release
-      - name: Package Windows prototype
+      - name: Build game and networking demo
+        run: cmake --build build --config Release --target golf tg_net_demo
+      - name: Launch game and capture visual checkpoints
+        shell: pwsh
+        run: ./scripts/capture-windows.ps1 -GamePath build/golfgame.exe -WorkingDirectory build
+      - name: Package Windows game
         shell: pwsh
         run: |
-          Compress-Archive -Path build/Release/golfgame.exe, build/Release/tg_net_demo.exe, README.md -DestinationPath golfgame-windows-x64.zip -Force
+          Compress-Archive -Path build/golfgame.exe, build/Release/tg_net_demo.exe, build/data, README.md, LICENSE, docs/THIRD_PARTY_NOTICES.md, vendor/Open-Golf/LICENSE -DestinationPath golfgame-windows-x64.zip -Force
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
           name: golfgame-windows-x64
           path: golfgame-windows-x64.zip
+      - name: Upload visual logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golfgame-visual-logs
+          path: logs/
+          if-no-files-found: warn
+          retention-days: 30
 
-  build-linux:
+  build-linux-network:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - name: Build
-        run: cmake --build build --config Release
+      - name: Configure networking-only build
+        run: cmake -S . -B build -DGOLFGAME_BUILD_OPEN_GOLF=OFF -DCMAKE_BUILD_TYPE=Release
+      - name: Build networking demo
+        run: cmake --build build --config Release --target tg_net_demo
       - name: Local network smoke test
         run: sh ./scripts/test-local.sh

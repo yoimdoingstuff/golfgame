@@ -1,113 +1,87 @@
 # Agent instructions
 
-These instructions apply to the entire repository. Read this file before making changes.
+Read this file before making changes.
 
-## Project in one minute
+## Product rules
 
-Golfgame is a small, portable Windows multiplayer minigolf game. It is inspired by the minigolf minigame in GMod Tower, not the Tower Plaza or a persistent social hub.
+- This is a compact Windows multiplayer minigolf game inspired by the minigolf minigame in GMod Tower, not the Tower Plaza.
+- **The golf balls are the players.** Never add golfer avatars, humanoid rigs, character movement or a persistent social hub.
+- Every player can putt at the same time. Do not add turn queues or a current-player turn system.
+- The target is a lightweight portable Windows game. Do not introduce Unity, Godot, Electron, a browser runtime or a heavyweight engine without an explicit product decision.
+- Create original Golfgame branding, course content and UI changes. Do not reuse proprietary GMod Tower or Tower Unite assets, maps, logos or exact interface artwork.
+- Cosmetics are visual only. They must never affect physics, collision, visibility advantage or shot power.
+- Use only ordinary LAN networking and explicitly permitted services. Never disguise traffic or bypass school/work network controls.
 
-**The golf balls are the players.** There are no golfer avatars, humanoid rigs, character controllers, walking animations or player bodies. A player is identified by their ball, name and cosmetic choices.
+## Upstream integration
 
-The intended game has compact, colourful low-poly courses, an angled third-person camera, and up to 16 players who can all aim and putt at the same time. Wins unlock visual cosmetics only.
+- vendor/Open-Golf is a pinned Git submodule. Its upstream project is MIT-licensed.
+- Clone with submodules: git clone --recurse-submodules https://github.com/yoimdoingstuff/golfgame.git
+- Existing checkout: git submodule update --init --recursive
+- Do not copy the entire upstream repository into a second directory or silently remove its source/asset notices.
+- Preserve vendor/Open-Golf/LICENSE and the licence files under vendor/Open-Golf/src/3rd_party and vendor/Open-Golf/data.
+- docs/THIRD_PARTY_NOTICES.md is an index, not a substitute for actual upstream notices.
+- CMake builds the upstream golf target and replaces only its main.c platform entry point with src/integration/opengolf_main.c. Renderer, UI, course, physics, data and audio code stay upstream unless an intentional patch is documented.
 
-## Non-negotiable design rules
+## Current architecture
 
-1. **Ball-only player identity.** Never add humanoid player characters or a social-hub world.
-2. **Simultaneous play.** Do not add turn queues or an active-player turn system. Each player can putt independently.
-3. **Cosmetics are cosmetic.** Ball colour, hats and trails must not affect physics, collision, shot power or visibility in a way that gives a gameplay advantage.
-4. **Small native build.** Keep the Windows build portable and lightweight. The current direction is C11, CMake, Win32 and the Windows system OpenGL 1.1/GLU libraries. Do not introduce Unity, Godot, Electron, a browser runtime, WebView or a large engine without an explicit product decision.
-5. **Original content.** Create original course geometry, meshes, UI, textures and audio. Do not copy GMod Tower or Tower Unite proprietary assets, maps, logos, fonts or exact interface artwork. Check licences and retain notices for any third-party material.
-6. **Network controls are respected.** Implement only ordinary LAN traffic and explicitly permitted services. Do not disguise traffic, tunnel around school/work filtering, or claim that LAN discovery will work on networks with client isolation.
+- vendor/Open-Golf/src/golf: upstream game logic, renderer, UI and one-ball gameplay.
+- vendor/Open-Golf/src/common: upstream level/data/asset/physics/common systems.
+- vendor/Open-Golf/src/3rd_party: upstream bundled dependencies.
+- vendor/Open-Golf/data: upstream levels, models, textures, UI data, fonts and audio.
+- src/integration/opengolf_main.c: Golfgame application entry point adapted from upstream main.c. Keep the upstream MIT attribution comment and update it if the upstream source changes.
+- src/integration/golf_multiplayer.c/.h: adapter that initialises, updates and shuts down tg_network, exposes wrapper calls and provides a diagnostics tab.
+- src/network/tg_network.c/.h: Golfgame's C11 UDP LAN layer.
+- src/demo/net_demo.c: command-line network test tool.
+- src/desktop/win_main.c: old prototype, not the primary game target.
+- CMakeLists.txt: build integration. Open-Golf target is golf, renamed to golfgame.exe.
+- scripts/copy-opengolf-data.cmake: copies runtime assets and applies the Golfgame title to the menu data in the build directory.
+- scripts/capture-windows.ps1: starts the Windows game and captures visual checkpoints under logs/.
+- .github/workflows/build.yml: Windows build, launch and screenshot capture; Linux networking-only smoke test.
 
-## Current implementation
+## Multiplayer limitations
 
-Treat code as the source of truth; some older planning notes describe ideas that were never implemented.
+Open-Golf's gameplay currently owns one golf ball in one golf_game_t. The Golfgame network module can form rooms and relay ball snapshots, but the upstream collision, input, camera, score and render systems are not converted to multiple simultaneous balls yet. Do not claim the game is fully multiplayer. The next major architectural task is to make ball state per player and feed every ball through the physics/render path while preserving the current single-player game flow as a test mode.
 
-- src/desktop/win_main.c is the current native Win32/OpenGL graphical prototype. It contains the window, menus, HUD, course rendering, basic ball physics, input and local profile handling in one file.
-- src/network/tg_network.h and src/network/tg_network.c are the C11 UDP networking layer. The public API is in the header. The current wire protocol version is defined in the C file.
-- src/demo/net_demo.c is a small command-line host/scan/join test client.
-- CMakeLists.txt defines the targets. The graphical golfgame target is built on Windows; the networking demo can also be built on Linux.
-- scripts/test-local.sh runs a localhost UDP host/client smoke test.
-- .github/workflows/build.yml builds the Windows client and package, then builds and smoke-tests the Linux networking demo.
-- docs/ contains product, course, HUD, cosmetics and Open-Golf research notes.
+The host currently relays client-reported state. It is not an authoritative or secure public-internet protocol. Treat client input/state as untrusted. Before public play, add sequence numbers, input validation, rate limits, host-side shot/stroke/result verification, robust packet serialisation and reconnect handling.
 
-The current graphics and physics are a **prototype**, not a finished game. It currently has one compact demo hole, basic ball movement and cosmetic rendering. A successful Windows CI build proves compilation and packaging, not that the graphical game has been launched or play-tested on a real Windows desktop.
+## Build and test
 
-Open-Golf is a research/reference project only. It is not vendored and is not a current build dependency. Do not start an integration or replace the current client with it unless the project owner explicitly changes direction.
+### Windows
 
-## Architecture and important constraints
-
-### Desktop client
-
-- The current graphical client is intentionally kept in src/desktop/win_main.c. It uses Win32 APIs, OpenGL 1.1 immediate-mode drawing and GLU.
-- The current code is largely organised around file-static state and helper functions. Follow existing naming and ownership patterns; avoid broad rewrites just to impose a new architecture.
-- The game loop owns input, frame updates, networking updates and rendering. Preserve responsive non-blocking behaviour.
-- The prototype uses simple local ball physics. Do not treat local simulation as authoritative multiplayer physics.
-- The profile is currently stored in a small profile.ini using Windows profile APIs. Keep profile changes backward-compatible or add explicit versioning when the format grows.
-- Avoid adding runtime DLLs, frameworks or large binary assets. Check the resulting release ZIP size when packaging changes.
-
-### Networking
-
-- tg_network.h defines the public API and shared player/room structures. Update it deliberately and keep callers in sync.
-- The current transport is UDP on port 27890, with local IPv4 broadcast discovery and direct IPv4/hostname joining.
-- TG_NET_MAX_PLAYERS is 16 including the host.
-- The current packet structs are packed and carry a protocol version. Keep packet layouts, size checks and version handling consistent. Bump the protocol version when changing an incompatible wire format.
-- Current packets are capped at 1200 bytes by the packet builder. Keep snapshots within this limit.
-- Networking is driven by regular calls to tg_net_update(dt). The implementation currently uses one module-global context; do not assume the API is thread-safe or introduce background networking threads without designing synchronisation.
-- The host currently relays client-reported ball state. It does **not** yet provide secure authoritative simulation, shot validation or score verification. Treat all client-supplied state as untrusted.
-- The current protocol is a prototype, not suitable for untrusted public internet play. Before that, add robust input validation, sequence/timestamp handling, rate limits, host-side shot and score validation, protocol compatibility handling and reconnect/disconnect behaviour.
-- Raw packed C structs are currently copied to/from UDP packets. Do not assume that representation is a permanent cross-architecture wire format; use explicit field encoding and defined byte order before claiming broad platform interoperability.
-- UDP broadcast is not internet discovery or NAT traversal. An internet relay and a native Bluetooth adapter are not implemented.
-
-### Gameplay
-
-- Maintain one independent ball state for each player.
-- Keep simultaneous putting; players finish a hole independently.
-- A finished ball should remain visible at the cup while others finish.
-- Keep player names and ball colours readable at normal camera distance. Colour should not be the only identifier.
-- Course hazards and obstacles need clear collision rules and feedback.
-- Moving obstacle visuals must not be mistaken for completed gameplay mechanics: verify that an obstacle actually affects ball physics before documenting it as functional.
-
-## Build and test commands
-
-### Windows, Visual Studio generator
-
-Run from the repository root in PowerShell:
-
+    git submodule update --init --recursive
     cmake -S . -B build -A x64
-    cmake --build build --config Release
+    cmake --build build --config Release --target golf tg_net_demo
 
-The graphical client should be at build\Release\golfgame.exe; the networking demo should be at build\Release\tg_net_demo.exe.
+Game executable: build/golfgame.exe. Runtime assets: build/data.
 
-### Windows, MinGW
+### Linux networking tests
 
-    cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-    cmake --build build
-
-### Linux networking build and smoke test
-
-    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-    cmake --build build --config Release
+    cmake -S . -B build -DGOLFGAME_BUILD_OPEN_GOLF=OFF -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --config Release --target tg_net_demo
     sh ./scripts/test-local.sh
 
-The Linux workflow does not build the Win32 graphical client. The local smoke test verifies a localhost UDP host/client exchange; it does not prove multi-machine LAN compatibility.
+The Linux job is intentionally networking-only. Do not imply it validates the Windows graphics build.
+
+## Visual testing
+
+The Windows Actions workflow runs scripts/capture-windows.ps1 and uploads the golfgame-visual-logs artifact. Inspect all screenshots and runtime stdout/stderr after UI, rendering, data or startup changes. The screenshots are stored in logs/screenshots in the job workspace, not committed to Git.
+
+Required visual checkpoints:
+- Main menu
+- Course selector
+- Loaded course/gameplay
+- Multiplayer diagnostics console
+
+A build passing is not enough. Check screenshots for blank windows, missing textures, wrong aspect ratio, clipped UI, bad scaling and failed state transitions. If the automation cannot reach a state, fix the automation or record the limitation rather than inventing a successful screenshot.
 
 ## Change workflow
 
-1. Read this file, README.md, TODO.md and the relevant document under docs/.
-2. Inspect the actual implementation before relying on a roadmap item or old comment. In particular, distinguish implemented, prototype-only, planned and untested behaviour.
-3. Make the smallest cohesive change that preserves the design rules above. Avoid unrelated refactors.
-4. Keep the C11 build warning-clean under the existing compiler warning flags. Do not silently remove warning flags to get a green build.
-5. Run the relevant build and tests. For network changes, run the localhost smoke test. For Windows graphics changes, ensure the Windows CI job compiles and packages the client.
-6. When possible, manually test on Windows and with at least two separate computers. Clearly record when only compilation or localhost tests were possible.
-7. Update TODO.md when work is completed, new blockers are found or priorities change. Update the relevant design document when behaviour or architecture changes.
-8. Review the diff for accidental binaries, generated build output, secrets, unrelated changes and third-party licence omissions.
-
-## Documentation and reporting rules
-
-- Never describe a planned feature as implemented.
-- Never describe a successful compile as a successful runtime test.
-- State exactly which tests ran and which could not be run.
-- Keep commands copyable and paths accurate.
-- Keep the main TODO short and actionable; move lengthy design detail into docs/.
-- Preserve the repository's GPL-3.0 licence. Do not change the project licence or remove its notices.
+1. Read AGENTS.md, TODO.md and relevant docs.
+2. Inspect actual source before trusting old roadmap statements or assumptions.
+3. Make a focused change and preserve the product rules.
+4. Keep C11 warning flags enabled.
+5. Run the relevant build and tests. Network changes require the localhost smoke test.
+6. For graphical changes, inspect the CI screenshots, stdout and stderr. When possible also run on a physical Windows machine.
+7. Update TODO.md, README.md and design docs when implementation changes.
+8. Review diffs for accidental binaries, generated logs, credentials, licence removals and unrelated changes.
+9. Never call a compile successful playtesting. State exactly what was and was not tested.

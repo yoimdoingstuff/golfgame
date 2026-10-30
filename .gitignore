@@ -1,5 +1,7 @@
 /build/
 /out/
+/logs/
+/vendor/Open-Golf/out/
 *.obj
 *.o
 *.exe

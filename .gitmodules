@@ -1,0 +1,4 @@
+[submodule "vendor/Open-Golf"]
+	path = vendor/Open-Golf
+	url = https://github.com/mgerdes/Open-Golf.git
+	shallow = true
