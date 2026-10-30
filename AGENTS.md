@@ -11,6 +11,12 @@ Read this file before making changes.
 - Create original Golfgame branding, course content and UI changes. Do not reuse proprietary GMod Tower or Tower Unite assets, maps, logos or exact interface artwork.
 - Cosmetics are visual only. They must never affect physics, collision, visibility advantage or shot power.
 - Use only ordinary LAN networking and explicitly permitted services. Never disguise traffic or bypass school/work network controls.
+- Nearby-device connectivity should feel like LocalSend/AirDrop/Quick Share: discover nearby peers, show clear device/player identity, require user-approved pairing, and remember trusted peers only with consent.
+- Prefer standards-based discovery (mDNS/DNS-SD and IPv4/IPv6 multicast/broadcast where supported) and direct peer-to-peer links. Keep manual IP/room-code joining as a reliable fallback.
+- Think of the connection layer as a node graph: direct links are preferred; a room host coordinates the match; optional multi-hop game-packet relaying is a later, opt-in feature with explicit peer consent, hop limits, loop prevention, rate limits and encrypted/authenticated links.
+- Do not promise interoperability with Apple's AirDrop or Google's Quick Share. Their device-discovery and transfer protocols are platform-specific/proprietary; implement a similar user experience using documented OS APIs and open standards instead.
+- Bluetooth Low Energy is suitable for small discovery/pairing messages, not a default real-time gameplay transport. Investigate supported Bluetooth PAN or Wi-Fi Direct APIs separately and provide fallbacks when unavailable.
+- Never create an unapproved tunnel, proxy or covert relay to get around school/work firewall or network policy. A relay is only for permitted game traffic and must be transparent to the user.
 
 ## Upstream integration
 

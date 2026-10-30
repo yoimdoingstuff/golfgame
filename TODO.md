@@ -27,6 +27,12 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [ ] Make the host validate shots, strokes, hole completion and final match results.
 - [ ] Build complete course progression and a shared scorecard for all players.
 - [ ] Test 2, 4, 8 and 16 players, packet loss, disconnects and host shutdown.
+- [ ] Add nearby-device discovery inspired by LocalSend: LAN broadcast/multicast discovery, visible nearby peers, pairing confirmation and remembered trusted peers.
+- [ ] Add a peer/node connection graph: direct peer links first, host-coordinated sessions, optional multi-hop relay through consenting peers only when direct paths fail and policy permits.
+- [ ] Evaluate mDNS/DNS-SD and IPv4/IPv6 multicast for discovery; keep a manual IP/room-code fallback.
+- [ ] Add secure peer identity and encrypted sessions (ephemeral key exchange, authenticated pairing, replay protection) before exposing peer relays.
+- [ ] Investigate OS-supported Wi-Fi Direct / Nearby Share integrations per platform. Do not attempt to clone proprietary AirDrop/Quick Share protocols.
+- [ ] Treat Bluetooth as optional discovery/pairing or a platform-supported network transport; do not assume BLE can carry real-time game traffic.
 
 ## Polish and release
 
