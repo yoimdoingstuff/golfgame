@@ -15,8 +15,9 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Verify the Host Lobby click, room creation status and seven real visual checkpoints in CI.
 - [x] Retry initial black frames rather than uploading blank screenshots.
 - [x] Hide the Multiplayer panel while the course selector is open so its close control remains accessible.
-- [ ] Fix the current Windows and Linux Open-Golf CI configure failures; the networking-only Linux smoke test passes, but the latest full workflow does not.
-- [ ] Check whether the Open-Golf path-extension fix resolves the Windows hosted-runner access violation (0xC0000005), then test the actual Windows game on a physical Windows PC.
+- [x] Fix the escaped CMake variables in the Open-Golf draw hook patch; full CI now configures and builds on Windows and Linux.
+- [x] Verify the full Actions pipeline: Windows x64 build/package, Linux Open-Golf build, Linux networking smoke test and seven Mesa/Xvfb visual checkpoints (run 41195877311).
+- [ ] Run the packaged game on a physical Windows PC and test two Windows PCs on a permitted LAN; CI compilation does not prove Windows runtime behaviour.
 - [x] Add normal Host / Find LAN / Join by IP / lobby controls to the game's actual front-end UI.
 - [ ] Test two Windows PCs on a permitted LAN.
 
@@ -53,4 +54,4 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Known limitations
 
-The imported game still simulates only one visible ball per client. The lobby and course-start signal are networked, but remote clients are not yet rendered as separate balls or included in a shared collision/shot simulation. The host currently relays client-reported state and is not an authoritative or secure public-internet protocol. The latest full CI run failed during Windows and Linux Open-Golf configuration; the Linux networking-only build and localhost smoke test passed. Do not describe the full game build or multiplayer gameplay as verified until those checks pass.
+The current CI pipeline is green (run 41195877311): the Windows x64 client builds and packages, the Linux client builds, the LAN smoke test passes, and seven visual checkpoints were captured under Mesa/Xvfb. The Windows runner only compiles/packages the game; physical Windows runtime and two-PC testing remain outstanding. The multiplayer gameplay is not complete: Open-Golf still owns one physics ball per client, and remote-ball presentation has not been validated in a real multi-client match. The host still relays client-reported state and is not an authoritative or secure public-internet protocol.
