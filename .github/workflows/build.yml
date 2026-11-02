@@ -48,7 +48,7 @@ jobs:
           sudo apt-get install -y \
             libx11-dev libxcursor-dev libxi-dev libxrandr-dev libxinerama-dev \
             libxext-dev libxxf86vm-dev libgl1-mesa-dev libgl1-mesa-dri \
-            libasound2-dev xvfb xdotool imagemagick mesa-utils x11-apps
+            libasound2-dev xvfb xdotool imagemagick mesa-utils x11-apps gdb
       - name: Configure Linux Open-Golf client
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build Linux game client
@@ -56,10 +56,24 @@ jobs:
           mkdir -p logs
           set -o pipefail
           cmake --build build --config Release --target golf 2>&1 | tee logs/build-linux-visual.txt
+      - name: Validate generated Workshop course data
+        run: python3 scripts/validate-workshop.py build/data
       - name: Capture UI checkpoints with Mesa software rendering
         run: |
           timeout 120s xvfb-run --auto-servernum --server-args="-screen 0 1600x900x24 +extension GLX +render -noreset" \
             env LIBGL_ALWAYS_SOFTWARE=1 bash ./scripts/capture-linux.sh
+      - name: Capture Linux startup backtrace after visual failure
+        if: failure()
+        run: |
+          set +e
+          cd build
+          timeout 30s xvfb-run --auto-servernum --server-args="-screen 0 1600x900x24 +extension GLX +render -noreset" \
+            env LIBGL_ALWAYS_SOFTWARE=1 gdb --batch \
+              -ex "set pagination off" \
+              -ex run \
+              -ex "thread apply all bt full" \
+              --args ./golfgame > ../logs/gdb-startup.txt 2>&1
+          echo "GDB exit: $?" >> ../logs/gdb-startup.txt
       - name: Upload visual logs and screenshots
         if: always()
         uses: actions/upload-artifact@v4

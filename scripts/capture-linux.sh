@@ -97,6 +97,14 @@ capture() {
     local path="$SHOT_DIR/$name"
     local dimensions bytes mean attempt
     for attempt in $(seq 1 12); do
+        if ! kill -0 "$APP_PID" 2>/dev/null; then
+            echo "Game process exited before capture $name." | tee -a "$REPORT"
+            return 1
+        fi
+        if ! xdotool getwindowname "$WINDOW_ID" >/dev/null 2>&1; then
+            echo "Game window disappeared before capture $name." | tee -a "$REPORT"
+            return 1
+        fi
         timeout 15s xwd -silent -id "$WINDOW_ID" -out "$path.xwd"
         timeout 15s convert "$path.xwd" "$path"
         rm -f "$path.xwd"

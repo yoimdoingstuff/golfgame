@@ -65,16 +65,24 @@ static void frame(void) {
 
     float dt = (float)stm_sec(stm_laptime(&last_time));
     if (!inited) {
-        startup_log("Initialising Open-Golf game systems.");
+        startup_log("Initialising Open-Golf data manager.");
         golf_data_init();
+        startup_log("Loading static data index.");
         golf_data_load("data/static_data.static_data", false);
 
+        startup_log("Initialising storage.");
         golf_storage_init();
+        startup_log("Initialising audio.");
         golf_audio_init();
+        startup_log("Initialising debug console.");
         golf_debug_console_init();
+        startup_log("Initialising input.");
         golf_inputs_init();
+        startup_log("Initialising graphics.");
         golf_graphics_init();
+        startup_log("Initialising draw passes.");
         golf_draw_init();
+        startup_log("Initialising first Workshop scene.");
         golf_init();
         startup_log("Initialising Golfgame LAN transport.");
         golf_mp_init();
@@ -88,6 +96,15 @@ static void frame(void) {
     storage_inited = true;
 
     golf_data_update(dt);
+    {
+        static int traced_frames = 0;
+        if (traced_frames < 8) {
+            char message[96];
+            snprintf(message, sizeof(message), "Data update complete on startup frame %d.", traced_frames + 1);
+            startup_log(message);
+        }
+        traced_frames++;
+    }
 
     golf_graphics_begin_frame(dt);
     golf_inputs_begin_frame();
@@ -96,9 +113,24 @@ static void frame(void) {
     golf_mp_update(dt);
     golf_mp_ui_update();
 
+    {
+        static int traced_frames = 0;
+        if (traced_frames < 8) {
+            startup_log("Game, network and menu UI update complete.");
+        }
+        traced_frames++;
+    }
+
     golf_graphics_set_viewport(V2(0, 0), V2((float)sapp_width(), (float)sapp_height()));
     golf_graphics_update_proj_view_mat();
     golf_draw();
+    {
+        static int traced_frames = 0;
+        if (traced_frames < 8) {
+            startup_log("Scene draw complete.");
+        }
+        traced_frames++;
+    }
 
     golf_inputs_end_frame();
     golf_graphics_end_frame();
