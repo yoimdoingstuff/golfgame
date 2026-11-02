@@ -2,95 +2,66 @@
 
 ## Product direction
 
-A compact, match-based multiplayer minigolf game inspired by the minigolf minigame in GMod Tower. This is **not** the full Tower/Plaza social hub. Players join a match and are represented by their golf balls.
+A compact, match-based multiplayer minigolf game inspired by the minigolf minigame in GMod Tower. This is not the full Tower/Plaza social hub. Players join a match and are represented by golf balls. All players can putt simultaneously.
 
 ## Locked-in targets
 
 - Portable Windows x64 executable, distributed as a ZIP with no installer.
 - Native C/CMake and a small runtime footprint; no heavyweight engine runtime.
-- Open-Golf is the upstream graphics/gameplay foundation, pinned as a Git submodule under vendor/Open-Golf.
-- A Golfgame-owned C11 UDP layer provides the current LAN transport prototype.
-- Low-poly, colourful courses with exaggerated, readable obstacles.
-- Angled third-person camera and the upstream course/level system.
-- 2-16 players per match, including the host.
-- Simultaneous minigolf: every player may aim and putt at the same time.
-- Player identity is expressed through ball colour, optional hat/accessory and trail.
-- Win progression unlocks cosmetics only; no physics upgrades.
-- Original Golfgame branding and new content. Preserve upstream Open-Golf assets and all licence notices when they are used.
+- Open-Golf remains a pinned technical foundation for rendering, course geometry, physics, level loading and audio, not the product's game content or course catalogue.
+- Golfgame owns its course pack, match flow, branding, multiplayer integration and the product-facing UI.
+- 2–16 players per match, including the host.
+- Low-poly, bright, toy-like courses with strong obstacle silhouettes.
+- Angled third-person camera and golf balls as player identities.
+- Simultaneous minigolf with no turn queue.
+- Cosmetic ball colours, hats and trails; rewards never affect physics.
 
-## Current implementation status
+## Current implementation
 
-The graphical client is based on upstream Open-Golf. The upstream UI, Sokol renderer, level loader, course data, physics and audio are built from the pinned submodule. The project-owned application entry point is adapted from upstream main.c and initialises/updates/shuts down the Golfgame network module.
+The runtime data staging step removes upstream Open-Golf's sample level directory. It then emits Golfgame's original Workshop levels from assets/golfgame/workshop-course-pack.cmake, copies Golfgame's game configuration and UI, and retains common engine assets plus their required notices.
 
-### Implemented
+The initial course selector presents one Workshop pack. Selecting it starts an 18-hole sequential progression. The level label and finish wording use hole terminology. The main menu includes Golfgame branding, a course-pack card and a short match tagline. The gameplay HUD shows the current hole, par, local strokes, aiming power and connected-player list.
 
-- Open-Golf submodule pinned at commit b9029f1e80c3110ae3d4fc9300854bdaeef96508.
-- Upstream golf target built as golfgame.exe on Windows and golfgame on Linux.
-- Upstream main menu, course selector, course rendering, level assets and physics.
-- C11 UDP networking library and command-line demo.
-- Network module lifecycle integrated into the game application.
-- Main-menu Multiplayer panel with player/room fields, LAN host/discovery, direct-address join, discovered-room joins, player roster, host-only start and leave controls.
-- Multiplayer diagnostics tab in the built-in debug console.
-- Windows build/package workflow and Linux localhost network smoke-test workflow.
-- Linux Mesa/Xvfb visual-capture automation. The first run created a Sokol window but aborted while indexing assets due to an upstream stack-buffer overflow in the path-extension helper. A guarded CMake-time fix is now added; the next visual run must verify it.
+The renderer and one-ball physics still come from the pinned Open-Golf foundation. The current multiplayer layer hosts/finds/joins LAN rooms, replicates match start and displays/interpolates remote ball snapshots. It does not yet simulate all balls in the same world.
 
-### Important limitations
+## Remaining limitations
 
-- The player-facing main-menu lobby is now present, and the host's match-start signal starts the same first course on connected clients. Remote balls are still not rendered or simulated in one shared world.
-- Open-Golf gameplay still maintains a single golf ball. Remote players are not yet integrated into its physics, input, rendering, camera and scoring systems.
-- The current UDP host relays client-reported state and is not authoritative or secure against modified clients.
-- Multi-machine 2-16 player tests have not yet been completed.
-- The Windows executable compiled in CI, but its first hosted-runner runtime launch crashed with access violation 0xC0000005 before a visible window was created. The Windows build remains the release target; Linux Mesa/Xvfb is used for automated visual smoke tests, not as a substitute for Windows hardware testing.
-
-## Architecture
-
-- vendor/Open-Golf: pinned upstream renderer, UI, game, physics, level system, data, audio and third-party dependencies.
-- src/integration/opengolf_main.c: project-owned Sokol application entry point adapted from upstream main.c.
-- src/integration/golf_multiplayer.c/.h: lifecycle bridge and debug-console controls for the network API.
-- src/network/tg_network.h: public networking API and shared room/player structures.
-- src/network/tg_network.c: UDP transport, packet definitions, discovery, join/leave, snapshots and match-start state.
-- src/demo/net_demo.c: command-line networking test client.
-- CMakeLists.txt: builds tg_network and adds the Open-Golf submodule target.
-- scripts/copy-opengolf-data.cmake: copies runtime data to the build output and replaces the displayed product title in that generated copy.
-- scripts/capture-linux.sh: launches the Linux game under Xvfb/Mesa and stores labelled screenshots and runtime logs under logs/.
-- .github/workflows/build.yml: Windows build/package, Linux network smoke test and Linux visual-capture job.
+- Each client still owns only one physical golf_game_t ball. The remote balls are not independently simulated and do not collide with the local ball.
+- Scoreboard values are currently per-hole client-reported strokes, not a host-verified cumulative 18-hole scorecard.
+- The host relays client-reported player state and is not authoritative or suitable for public internet play.
+- Hats, trails, persistent cosmetics, course-pack previews and a fully original pause/results UI are not finished.
+- CI builds and Linux software-renderer screenshots do not replace physical Windows and multi-PC LAN tests.
 
 ## Roadmap
 
-### P0 - Establish the integrated client
+### P0 - Make the product look and play like Golfgame
 
-- [x] Pin and build the upstream Open-Golf game.
-- [x] Use upstream UI, rendering, physics and level assets rather than the homemade Win32 prototype.
-- [x] Link the network library and integrate its application lifecycle.
-- [x] Add a basic diagnostics panel for network smoke testing.
-- [x] Add Windows build/package and Linux networking CI.
-- [ ] Build the Linux visual target and inspect screenshots from Mesa/Xvfb.
-- [ ] Diagnose the Windows hosted-runner startup crash and test on physical Windows hardware.
-- [x] Add standard host/find/join/lobby controls to the actual front-end UI.
-- [ ] Verify the automated Host Lobby screenshot and adjust UI spacing/capture coordinates.
-- [ ] Test on a physical Windows machine.
+- [x] Remove upstream sample maps from the packaged runtime.
+- [x] Create an original 18-hole Workshop course pack.
+- [x] Make the selector choose a course pack, not an individual numbered stock level.
+- [x] Add hole terminology and a first-pass in-game HUD.
+- [ ] Replace the remaining upstream menu/pause/finish art and layout.
+- [ ] Inspect all 18 holes in visual CI and tune the geometry/collisions.
 
-### P1 - Simultaneous multiplayer
+### P1 - Real simultaneous multiplayer
 
-- [ ] Convert the single golf_game_t ball into per-player ball state.
-- [ ] Update physics and collision to simulate every player's ball against the same course.
-- [ ] Restrict aiming/input to the local ball while displaying/interpolating remote balls.
-- [ ] Add player names, ball colours, hats and trails to the upstream renderer.
-- [ ] Make the host authoritative for shots, strokes, hole completion and match results.
-- [ ] Add full scorecard and result UI for all players.
+- [ ] Create independent ball state for each connected player.
+- [ ] Run collision/physics for all active balls on the shared course.
+- [ ] Let only the local player control their ball; display stable remote name labels.
+- [ ] Keep holed-out balls at the cup while other players finish.
+- [ ] Add host-verified strokes and a cumulative 18-hole scorecard/results screen.
 
-### P2 - Reliability and release
+### P2 - Cosmetics and release
 
-- [ ] Harden the protocol with validation, sequence IDs, rate limits, defined serialization and compatibility handling.
-- [ ] Add reconnect and host-shutdown handling.
+- [ ] Add ball colours, low-poly hats and trails.
+- [ ] Award cosmetics from verified match wins.
 - [ ] Test 2, 4, 8 and 16 players on real networks.
-- [ ] Version cosmetic profiles and award unlocks based on verified match wins.
-- [ ] Measure the portable Windows ZIP and avoid unnecessary runtime dependencies.
+- [ ] Measure the portable Windows ZIP and remove unused runtime assets safely.
 
-### P3 - Optional additions
+### P3 - Optional networking
 
-- [ ] Approved internet relay, only where the network owner permits the service and traffic.
-- [ ] Experimental native Windows Bluetooth transport if it is worth maintaining.
-- [ ] Additional original course themes and a course editor after the multiplayer core is stable.
+- [ ] LocalSend-style discovery/invitation handoff.
+- [ ] Explicitly permitted relay, SOCKS5 proxy experiments and controlled Tor/obfs4 transport research.
+- [ ] Optional platform-specific Wi-Fi Direct or Bluetooth PAN experiments.
 
-See TODO.md for the short actionable list, AGENTS.md for agent workflow and docs/OPEN_GOLF_INTEGRATION.md for details of the upstream adaptation.
+See TODO.md for the current actionable list and AGENTS.md for the coding workflow.

@@ -18,6 +18,10 @@ This is a compact GMod Tower-style minigolf match, not a persistent social world
 - Themes could include toy room, rooftop, workshop, pirate ship or neon arcade.
 - Keep visual clutter away from ball paths so shots remain readable.
 
+## First authored course pack
+
+The initial Workshop pack contains 18 compact holes: straight putts, sweeping turns, corners, ramps, bumper lines, rotating arms, narrow bridges and switchbacks. Each hole is a separate level in a single course pack; players select Workshop once and progress through its 18 holes. The source geometry is stored in assets/golfgame/workshop-course-pack.cmake and emitted to runtime level files during data staging.
+
 ## Ball presentation
 
 - Each player owns one golf ball with a unique player ID and display name.

@@ -61,6 +61,25 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
         message(FATAL_ERROR "Could not safely patch the Open-Golf remote-ball draw hook.")
     endif()
 
+    # Replace the numbered sample-level flow with Golfgame's one-pack, 18-hole progression.
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOPENGOLF_DIR=${OPENGOLF_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch-opengolf-course-flow.cmake"
+        RESULT_VARIABLE _opengolf_course_patch_result)
+    if(NOT _opengolf_course_patch_result EQUAL 0)
+        message(FATAL_ERROR "Could not safely patch Golfgame's course-pack flow.")
+    endif()
+
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOPENGOLF_DIR=${OPENGOLF_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch-opengolf-main-menu.cmake"
+        RESULT_VARIABLE _opengolf_menu_patch_result)
+    if(NOT _opengolf_menu_patch_result EQUAL 0)
+        message(FATAL_ERROR "Could not safely patch Golfgame's main-menu title.")
+    endif()
+
     add_subdirectory("${OPENGOLF_DIR}" "${CMAKE_BINARY_DIR}/opengolf")
 
     if(NOT TARGET golf)
@@ -87,6 +106,7 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
         COMMAND "${CMAKE_COMMAND}"
             "-DOPENGOLF_DATA_DIR=${OPENGOLF_DIR}/data"
             "-DDESTINATION_DIR=${CMAKE_BINARY_DIR}/data"
+            "-DGOLFGAME_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/assets/golfgame"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/copy-opengolf-data.cmake"
         COMMENT "Copying Open-Golf course and runtime data")
     add_dependencies(golf golfgame_runtime_data)

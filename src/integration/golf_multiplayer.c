@@ -2,6 +2,7 @@
 #include "cimgui/cimgui.h"
 
 #include "common/debug_console.h"
+#include "common/graphics.h"
 #include "golf/game.h"
 #include "golf/golf.h"
 #include "golf/ui.h"
@@ -303,26 +304,85 @@ void golf_mp_ui_update(void) {
     size_t room_count, i;
     const tg_net_player *players;
     size_t player_count;
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+    golf_graphics_t *graphics = golf_graphics_get();
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoSavedSettings;
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar;
+    static const int hole_par[18] = {
+        2, 3, 3, 4, 3, 4, 3, 4, 3, 4, 4, 3, 4, 4, 4, 4, 4, 5
+    };
 
-    if (!multiplayer_ready || golf_get()->state != GOLF_STATE_MAIN_MENU ||
-        golf_ui_get()->main_menu.is_level_select_open) {
+    if (!multiplayer_ready) return;
+    tg_net_get_info(&info);
+    players = tg_net_get_players(&player_count);
+
+    if (golf->state == GOLF_STATE_IN_GAME) {
+        int hole = golf->level_num + 1;
+        int par = (hole >= 1 && hole <= 18) ? hole_par[hole - 1] : 3;
+        igSetNextWindowPos((ImVec2){18.0f, 18.0f}, ImGuiCond_Always, (ImVec2){0.0f, 0.0f});
+        igSetNextWindowSize((ImVec2){292.0f, 142.0f}, ImGuiCond_Always);
+        igSetNextWindowBgAlpha(0.84f);
+        if (igBegin("Round HUD", NULL, flags)) {
+            igText("WORKSHOP  /  HOLE %02d OF 18", hole);
+            igSeparator();
+            igText("PAR  %d", par);
+            igSameLine(105.0f, 12.0f);
+            igText("STROKES  %d", game->stroke_count);
+            if (game->state == GOLF_GAME_STATE_AIMING) {
+                float power = game->aim_line.power * 100.0f;
+                if (power < 0.0f) power = 0.0f;
+                if (power > 100.0f) power = 100.0f;
+                igText("POWER  %.0f%%", power);
+            } else if (game->state == GOLF_GAME_STATE_FINISHED ||
+                       game->state == GOLF_GAME_STATE_CELEBRATION) {
+                igText("HOLED OUT");
+            } else if (game->ball.is_moving) {
+                igText("BALL IN MOTION");
+            } else {
+                igText("HOLD LEFT MOUSE TO AIM");
+            }
+            igText("%u PLAYERS  |  %s", (unsigned)info.player_count,
+                info.status == TG_NET_STATUS_OFFLINE ? "PRACTICE" : status_name(info.status));
+        }
+        igEnd();
+
+        igSetNextWindowPos((ImVec2){graphics->viewport_size.x - 298.0f, 18.0f},
+            ImGuiCond_Always, (ImVec2){0.0f, 0.0f});
+        igSetNextWindowSize((ImVec2){280.0f, 250.0f}, ImGuiCond_Always);
+        igSetNextWindowBgAlpha(0.80f);
+        if (igBegin("Players##round", NULL, flags)) {
+            igText("SCOREBOARD");
+            igSeparator();
+            if (player_count == 0) igText("Solo practice");
+            for (i = 0; i < player_count && i < TG_NET_MAX_PLAYERS; ++i) {
+                const char *state = (players[i].flags & 2u) ? "HOLED" :
+                    ((players[i].flags & 1u) ? "PUTTING" : "READY");
+                igBulletText("%s   %u   %s", players[i].name,
+                    (unsigned)players[i].strokes, state);
+            }
+            if (info.last_error[0]) {
+                igSeparator();
+                igTextWrapped("%s", info.last_error);
+            }
+        }
+        igEnd();
         return;
     }
 
-    tg_net_get_info(&info);
-    room_count = tg_net_get_rooms(rooms, TG_NET_MAX_ROOMS);
-    players = tg_net_get_players(&player_count);
+    if (golf->state != GOLF_STATE_MAIN_MENU ||
+        golf_ui_get()->main_menu.is_level_select_open) return;
 
-    igSetNextWindowPos((ImVec2){930.0f, 18.0f}, ImGuiCond_Always, (ImVec2){0.0f, 0.0f});
-    igSetNextWindowSize((ImVec2){330.0f, 660.0f}, ImGuiCond_Always);
-    igSetNextWindowBgAlpha(0.94f);
-    if (igBegin("Multiplayer", NULL, flags)) {
-        igText("LOCAL MULTIPLAYER");
-        igText("UDP LAN  |  PORT %u  |  UP TO %u PLAYERS",
-            (unsigned)TG_NET_DEFAULT_PORT, (unsigned)TG_NET_MAX_PLAYERS);
+    room_count = tg_net_get_rooms(rooms, TG_NET_MAX_ROOMS);
+    igSetNextWindowPos((ImVec2){graphics->viewport_size.x - 350.0f, 18.0f},
+        ImGuiCond_Always, (ImVec2){0.0f, 0.0f});
+    igSetNextWindowSize((ImVec2){330.0f, 560.0f}, ImGuiCond_Always);
+    igSetNextWindowBgAlpha(0.91f);
+    if (igBegin("Play Together", NULL, flags)) {
+        igText("GOLFGAME  /  ONLINE");
+        igText("UP TO %u PLAYERS  |  PORT %u",
+            (unsigned)TG_NET_MAX_PLAYERS, (unsigned)TG_NET_DEFAULT_PORT);
         igSeparator();
 
         if (info.status == TG_NET_STATUS_OFFLINE ||
@@ -334,82 +394,64 @@ void golf_mp_ui_update(void) {
             igInputText("##mp_room_name", mp_room_name, sizeof(mp_room_name),
                 (ImGuiInputTextFlags)0, NULL, NULL);
 
-            if (igButton("Host LAN room", (ImVec2){145.0f, 0.0f})) {
+            if (igButton("HOST ROOM", (ImVec2){150.0f, 34.0f}))
                 (void)golf_mp_host(mp_player_name, mp_room_name);
-            }
             igSameLine(0.0f, 8.0f);
-            if (igButton("Find LAN rooms", (ImVec2){145.0f, 0.0f})) {
+            if (igButton("FIND ROOMS", (ImVec2){150.0f, 34.0f}))
                 (void)golf_mp_discover();
-            }
 
             igSeparator();
             igText("JOIN BY ADDRESS");
             igInputTextWithHint("##mp_direct_address", "192.168.1.10",
                 mp_direct_address, sizeof(mp_direct_address),
                 (ImGuiInputTextFlags)0, NULL, NULL);
-            if (igButton("Join address", (ImVec2){298.0f, 0.0f})) {
+            if (igButton("JOIN ADDRESS", (ImVec2){308.0f, 32.0f}))
                 (void)golf_mp_join(mp_direct_address, mp_player_name);
-            }
 
             igSeparator();
-            igText("ROOMS ON YOUR LAN");
+            igText("NEARBY ROOMS");
             if (room_count == 0) {
-                if (info.status == TG_NET_STATUS_SEARCHING) {
-                    igTextWrapped("Looking for rooms...");
-                } else {
-                    igTextWrapped("No rooms found yet. Search again or enter an address.");
-                }
+                igTextWrapped(info.status == TG_NET_STATUS_SEARCHING ?
+                    "Searching for Golfgame rooms..." :
+                    "No rooms found. Host a room or search again.");
             }
             for (i = 0; i < room_count; ++i) {
-                char label[160];
-                char button[40];
-                snprintf(label, sizeof(label), "%s  (%u/%u)\nHost: %s  |  %s",
-                    rooms[i].name,
-                    (unsigned)rooms[i].player_count,
-                    (unsigned)rooms[i].max_players,
-                    rooms[i].host_name, rooms[i].address);
+                char label[160], button[40];
+                snprintf(label, sizeof(label), "%s  (%u/%u)\nHost: %s",
+                    rooms[i].name, (unsigned)rooms[i].player_count,
+                    (unsigned)rooms[i].max_players, rooms[i].host_name);
                 igTextWrapped("%s", label);
-                snprintf(button, sizeof(button), "Join##room%u", (unsigned)rooms[i].room_id);
-                if (igButton(button, (ImVec2){298.0f, 0.0f})) {
+                snprintf(button, sizeof(button), "JOIN##room%u", (unsigned)rooms[i].room_id);
+                if (igButton(button, (ImVec2){308.0f, 30.0f}))
                     (void)golf_mp_join(rooms[i].address, mp_player_name);
-                }
             }
         } else {
-            igText("Status: %s", status_name(info.status));
-            igTextWrapped("Room: %s", info.room_name);
-            igText("Players: %u / %u", (unsigned)info.player_count, (unsigned)info.max_players);
+            igText("STATUS  %s", status_name(info.status));
+            igTextWrapped("ROOM  %s", info.room_name);
+            igText("PLAYERS  %u / %u", (unsigned)info.player_count, (unsigned)info.max_players);
             igSeparator();
-            for (i = 0; i < player_count && i < TG_NET_MAX_PLAYERS; ++i) {
-                igBulletText("%s  |  %u strokes%s",
-                    players[i].name,
-                    (unsigned)players[i].strokes,
-                    (players[i].flags & 2u) ? "  |  finished" : "");
-            }
+            for (i = 0; i < player_count && i < TG_NET_MAX_PLAYERS; ++i)
+                igBulletText("%s  |  %u strokes", players[i].name, (unsigned)players[i].strokes);
 
             if (info.role == TG_NET_ROLE_HOST && !info.match_started) {
-                if (igButton("START MATCH", (ImVec2){298.0f, 42.0f})) {
+                if (igButton("START WORKSHOP MATCH", (ImVec2){308.0f, 42.0f}))
                     (void)golf_mp_start_match();
-                }
-                igTextWrapped("All connected players load the same course together. Remote ball physics is local on each player for now.");
+                igTextWrapped("Everyone can putt at the same time.");
             } else if (info.match_started) {
-                igTextWrapped("Match started. Loading the course...");
+                igTextWrapped("Match started. Loading hole 1...");
             } else if (info.role == TG_NET_ROLE_CLIENT) {
-                igTextWrapped("Waiting for the host to start the match...");
+                igTextWrapped("Waiting for the host to start...");
             }
-
-            if (igButton("Leave room", (ImVec2){298.0f, 0.0f})) {
+            if (igButton("LEAVE ROOM", (ImVec2){308.0f, 32.0f}))
                 golf_mp_leave();
-            }
         }
-
         if (info.last_error[0]) {
             igSeparator();
-            igTextWrapped("Network message: %s", info.last_error);
+            igTextWrapped("%s", info.last_error);
         }
     }
     igEnd();
 }
-
 void golf_mp_shutdown(void) {
     if (!multiplayer_ready) return;
     tg_net_shutdown();

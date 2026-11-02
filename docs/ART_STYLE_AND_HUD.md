@@ -42,6 +42,10 @@ The reference HUD keeps essential golf information near the lower-left corner:
 
 Our visual treatment uses a dark teal translucent panel, pale text, aqua highlights, and warm gold accents. It follows the same information hierarchy without copying the source UI artwork.
 
+## First-pass HUD
+
+The current Golfgame HUD shows Workshop hole number, par, local strokes, shot power while aiming, player count and a compact connected-player list. It is a functional first pass, not the final scorecard: cumulative 18-hole totals, tab-to-expand scorecard, player labels beside the balls and host-verified results remain future work.
+
 ## Ball cosmetics
 
 - Ball colour: available immediately from a small high-contrast palette.
