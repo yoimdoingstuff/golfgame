@@ -9,8 +9,9 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Replace the 20-number sample level selector with one Workshop course-pack card and sequential hole progression.
 - [x] Stage only Golfgame level files into the packaged runtime data; retain upstream engine models, textures, shaders, fonts and licence notices only where used.
 - [x] Change the game-facing title, course-pack labels, hole-complete wording and level number to Golfgame / Workshop / HOLE.
+- [x] Remove the stock Play button / numbered selector interaction and add a Golfgame Workshop entry CTA with a cohesive teal multiplayer panel theme.
 - [x] Add an in-game HUD for hole, par, strokes, power and the current player list.
-- [ ] Replace the remaining upstream UI layout/pixel-pack look with a fully original Golfgame menu, pause, finish and scorecard UI.
+- [ ] Replace the remaining upstream UI layout/pixel-pack look in pause, finish and scorecard screens; the main-menu Play/selector flow now uses Golfgame-owned controls.
 - [ ] Add more original course packs and a simple authoring/validation tool for course geometry.
 - [ ] Add hole previews, themed props, ramps, tunnels, lifts, launchers and shortcuts with more distinctive visual identities.
 - [ ] Inspect every Workshop hole screenshot and fix geometry, collision, camera or difficulty problems discovered in runtime.

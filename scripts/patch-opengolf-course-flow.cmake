@@ -44,6 +44,37 @@ string(FIND "${_ui}" "\"WORKSHOP\"" _workshop_pos)
 if(_workshop_pos EQUAL -1)
     message(FATAL_ERROR "The Workshop course-pack label was not applied.")
 endif()
+# Replace the stock Play button and level-picker controls with Golfgame's own Workshop entry CTA.
+string(FIND "${_ui}" "/* Golfgame custom front-end owns the Play and course-pack controls. */" _custom_menu_already)
+if(_custom_menu_already EQUAL -1)
+    set(_menu_start_anchor "static void _golf_ui_main_menu(float dt) {")
+    set(_menu_end_anchor "static void _golf_ui_camera_controls(float dt) {")
+    string(FIND "${_ui}" "${_menu_start_anchor}" _menu_start)
+    string(FIND "${_ui}" "${_menu_end_anchor}" _menu_end)
+    if(_menu_start EQUAL -1 OR _menu_end EQUAL -1 OR _menu_end LESS _menu_start)
+        message(FATAL_ERROR "Could not locate the original Open-Golf main-menu function.")
+    endif()
+    string(SUBSTRING "${_ui}" 0 ${_menu_start} _menu_prefix)
+    string(SUBSTRING "${_ui}" ${_menu_end} -1 _menu_suffix)
+    set(_custom_main_menu [=[
+static void _golf_ui_main_menu(float dt) {
+    /* Golfgame custom front-end owns the Play and course-pack controls. */
+    golf_ui_layout_t *layout = golf_data_get_ui_layout("data/ui/ui.ui");
+    _golf_ui_text_name(layout, "main_text", 1);
+    _golf_ui_text_name(layout, "main2_text", 1);
+    _golf_ui_text_name(layout, "main_tagline_text", 1);
+
+    float fade_in_length = CFG_NUM(game_cfg, "game_fade_in_length");
+    if (golf->main_menu.t < fade_in_length) {
+        float alpha = 1 - (golf->main_menu.t / fade_in_length);
+        _golf_ui_draw_fade(alpha);
+    }
+}
+
+]=])
+    string(CONCAT _ui "${_menu_prefix}" "${_custom_main_menu}" "${_menu_suffix}")
+endif()
+
 file(WRITE "${_ui_c}" "${_ui}")
 
 file(READ "${_golf_c}" _golf)

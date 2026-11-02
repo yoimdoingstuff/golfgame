@@ -136,15 +136,11 @@ click_at 1005 178
 sleep 1
 capture "02-host-lobby.png"
 
-# Open the upstream course selector.
-click_at 640 540
-sleep 1
-capture "03-course-select.png"
-
-# Select the first course tile in the default course-picker layout.
-click_at 424 246
+# Capture the Golfgame Workshop entry panel, then start the match from its central CTA.
+capture "03-workshop-entry.png"
+click_at 640 515
 sleep 6
-capture "04-course-gameplay.png"
+capture "04-workshop-hole-01.png"
 
 # Open the debug console, then choose the Golfgame Multiplayer tab.
 timeout 10s xdotool key --window "$WINDOW_ID" grave

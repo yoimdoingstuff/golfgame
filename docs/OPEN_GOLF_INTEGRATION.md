@@ -15,11 +15,11 @@ Open-Golf is an engine foundation only. Its sample courses, product name and num
 
 - assets/golfgame/workshop-course-pack.cmake stores the generated source data for 18 original Workshop holes. Each GEO entity's lightmap-section UV array is encoded using the upstream packed base64/int32 format (100,000 fixed-point scale), not a JSON number array.
 - assets/golfgame/config/game.cfg points the 18-hole progression at the generated workshop-01.level through workshop-18.level.
-- assets/golfgame/ui/ui.ui supplies the Golfgame title, Workshop course-pack selector, hole terminology and adjusted menu palette.
+- assets/golfgame/ui/ui.ui supplies the Golfgame title, Workshop subtitle, hole terminology and adjusted palette. The course-flow patch keeps the title/tagline but removes the stock Play button/selector interaction so the Golfgame ImGui CTA starts the Workshop directly.
 - scripts/copy-opengolf-data.cmake copies shared engine runtime assets, removes the upstream data/levels directory, writes only the 18 Golfgame levels, and stages the Golfgame UI/config. scripts/validate-workshop.py checks the staged JSON, triangle indexes, materials, lightmap images and packed UV byte counts before launch.
 - scripts/patch-opengolf-course-flow.cmake changes the upstream selector to a single Workshop pack card and changes dynamic level wording to hole wording. It also points the boot scene at the first Workshop hole.
 - scripts/patch-opengolf-main-menu.cmake adds the Golfgame course/match tagline to the JSON-driven main menu.
-- src/integration/golf_multiplayer.c adds the LAN flow, debug diagnostics and a first-pass in-game HUD/scoreboard.
+- src/integration/golf_multiplayer.c adds the LAN flow, debug diagnostics, Golfgame-owned Workshop entry CTA, a teal theme and the first-pass in-game HUD/scoreboard.
 
 The patches are narrow, idempotent and fail if the expected upstream anchors are absent. They modify only the local submodule worktree during CMake configure; they do not change the pinned upstream commit.
 

@@ -20,7 +20,7 @@ A compact, match-based multiplayer minigolf game inspired by the minigolf miniga
 
 The runtime data staging step removes upstream Open-Golf's sample level directory. It then emits Golfgame's original Workshop levels from assets/golfgame/workshop-course-pack.cmake, copies Golfgame's game configuration and UI, and retains common engine assets plus their required notices.
 
-The initial course selector presents one Workshop pack. Selecting it starts an 18-hole sequential progression. The level label and finish wording use hole terminology. The main menu includes Golfgame branding, a course-pack card and a short match tagline. The gameplay HUD shows the current hole, par, local strokes, aiming power and connected-player list.
+The main menu retains Golfgame branding and the 3D course backdrop, but the stock Open-Golf Play button and course-picker interaction are replaced by a Golfgame-owned Workshop entry CTA. The right-side multiplayer panel uses a unified teal theme. Selecting Play Workshop starts the 18-hole sequential progression. The level label and finish wording use hole terminology. The gameplay HUD shows the current hole, par, local strokes, aiming power and connected-player list.
 
 The renderer and one-ball physics still come from the pinned Open-Golf foundation. The current multiplayer layer hosts/finds/joins LAN rooms, replicates match start and displays/interpolates remote ball snapshots. It does not yet simulate all balls in the same world.
 
