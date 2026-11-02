@@ -5,6 +5,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 ## Product conversion and course content
 
 - [x] Replace the shipped Open-Golf sample levels with an original Golfgame-authored 18-hole Workshop course pack.
+- [x] Encode each course lightmap UV buffer in the upstream packed base64/int32 format and validate all 18 emitted level files before runtime capture.
 - [x] Replace the 20-number sample level selector with one Workshop course-pack card and sequential hole progression.
 - [x] Stage only Golfgame level files into the packaged runtime data; retain upstream engine models, textures, shaders, fonts and licence notices only where used.
 - [x] Change the game-facing title, course-pack labels, hole-complete wording and level number to Golfgame / Workshop / HOLE.
@@ -16,7 +17,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Immediate engineering
 
-- [ ] Confirm Windows and Linux full builds, then inspect the new Workshop course selector and gameplay screenshots from CI.
+- [ ] Confirm Windows and Linux full builds, then inspect the new Workshop course selector and gameplay screenshots from CI. The first capture exposed a lightmap-UV serialization mismatch; a startup backtrace identified and the new pack now uses the correct upstream encoding.
 - [ ] Verify no Open-Golf sample level files are present in the Windows package.
 - [ ] Run the packaged game on a physical Windows PC and test two Windows PCs on a permitted LAN.
 - [ ] Remove remaining Open-Golf branding, stock menu strings and unused product-facing references without removing upstream attribution/licence notices.

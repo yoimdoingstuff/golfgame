@@ -417,7 +417,7 @@ void golf_mp_ui_update(void) {
             }
             for (i = 0; i < room_count; ++i) {
                 char label[160], button[40];
-                snprintf(label, sizeof(label), "%s  (%u/%u)\nHost: %s",
+                snprintf(label, sizeof(label), "%.31s  (%u/%u)\nHost: %.23s",
                     rooms[i].name, (unsigned)rooms[i].player_count,
                     (unsigned)rooms[i].max_players, rooms[i].host_name);
                 igTextWrapped("%s", label);

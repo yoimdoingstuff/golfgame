@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Validate the generated Golfgame Workshop level pack before launching the game."""
+import base64
+import binascii
 import json
 import pathlib
 import sys
@@ -46,9 +48,17 @@ for number in range(1, EXPECTED + 1):
         if section.get("lightmap_name") not in lightmaps:
             errors.append(f"{path.name}/{entity.get('name')}: unknown lightmap")
         faces = geo.get("faces", [])
-        uv_count = len(section.get("uvs", []))
-        if uv_count != len(faces) * 6:
-            errors.append(f"{path.name}/{entity.get('name')}: lightmap UV count {uv_count}, expected {len(faces)*6}")
+        encoded_uvs = section.get("uvs")
+        if not isinstance(encoded_uvs, str):
+            errors.append(f"{path.name}/{entity.get('name')}: lightmap UVs must be a base64 string")
+        else:
+            try:
+                packed_uvs = base64.b64decode(encoded_uvs, validate=True)
+                expected_uv_bytes = len(faces) * 6 * 4
+                if len(packed_uvs) != expected_uv_bytes:
+                    errors.append(f"{path.name}/{entity.get('name')}: packed lightmap UV bytes {len(packed_uvs)}, expected {expected_uv_bytes}")
+            except (binascii.Error, ValueError) as exc:
+                errors.append(f"{path.name}/{entity.get('name')}: invalid packed lightmap UVs: {exc}")
         for face in faces:
             face_count += 1
             indexes = face.get("idxs", [])
