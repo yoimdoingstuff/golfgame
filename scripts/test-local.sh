@@ -13,7 +13,7 @@ sleep 0.3
 CLIENT_PID=$!
 cleanup_all() { kill "$CLIENT_PID" 2>/dev/null || true; cleanup; }
 trap cleanup_all EXIT INT TERM
-sleep 1.5
+sleep 2.5
 if ! grep -q 'players 2/16' "$HOST_LOG"; then
   echo "Host did not register the client. Host log:" >&2
   cat "$HOST_LOG" >&2
@@ -26,4 +26,16 @@ if ! grep -q 'SmokeClient' "$HOST_LOG"; then
   cat "$HOST_LOG" >&2
   exit 1
 fi
-echo "PASS: localhost UDP host/join and 2-player snapshot"
+if ! grep -q 'SmokeClient(x=4.50,strokes=7)' "$HOST_LOG"; then
+  echo "Host did not receive the client's mapped position and stroke count." >&2
+  cat "$HOST_LOG" >&2
+  echo "Client log:" >&2
+  cat "$CLIENT_LOG" >&2
+  exit 1
+fi
+if ! grep -q 'SmokeHost(x=1.25,strokes=7)' "$CLIENT_LOG"; then
+  echo "Client did not receive the host's mapped position and stroke count." >&2
+  cat "$CLIENT_LOG" >&2
+  exit 1
+fi
+echo "PASS: localhost UDP host/join, player identity, position and stroke replication in both directions"

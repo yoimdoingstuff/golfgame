@@ -35,7 +35,8 @@ static void print_players(void) {
         info.role==TG_NET_ROLE_HOST?"HOST":"CLIENT",info.room_name,
         (unsigned)info.player_count,(unsigned)info.max_players);
     for(i=0;i<count && i<TG_NET_MAX_PLAYERS;i++)
-        printf("%s%s",i?", ":"",players[i].name);
+        printf("%s%s(x=%.2f,strokes=%u)",i?", ":"",players[i].name,
+            (double)players[i].ball_x,(unsigned)players[i].strokes);
     printf("                    "); fflush(stdout);
 }
 static void usage(const char *exe) {
@@ -50,6 +51,7 @@ static double monotonic_seconds(void) {
 }
 int main(int argc,char **argv) {
     double last; float print_timer=0; tg_net_info info;
+    tg_net_player local_player;
     if(argc<2) { usage(argv[0]); return 0; }
     if(!tg_net_init()) {
         tg_net_get_info(&info);
@@ -89,7 +91,20 @@ int main(int argc,char **argv) {
     last=monotonic_seconds();
     for(;;) {
         double now=monotonic_seconds(); float dt=(float)(now-last); last=now;
-        tg_net_update(dt); print_timer+=dt;
+        tg_net_update(dt);
+        tg_net_get_info(&info);
+        if (info.role == TG_NET_ROLE_HOST ||
+            (info.role == TG_NET_ROLE_CLIENT &&
+             info.status == TG_NET_STATUS_CONNECTED)) {
+            memset(&local_player, 0, sizeof(local_player));
+            local_player.ball_x = info.role == TG_NET_ROLE_HOST ? 1.25f : 4.50f;
+            local_player.ball_qw = 1.0f;
+            local_player.ball_colour_rgba = TG_NET_DEFAULT_BALL_COLOUR_RGBA;
+            local_player.strokes = 7u;
+            local_player.flags = 4u;
+            tg_net_set_local_player(&local_player);
+        }
+        print_timer+=dt;
         if(print_timer>=1.0f) {
             tg_net_get_info(&info);
             if(info.role==TG_NET_ROLE_CLIENT && info.status==TG_NET_STATUS_CONNECTING)
