@@ -8,7 +8,7 @@ An original, compact Windows multiplayer minigolf game inspired by the minigolf 
 - A Golfgame-owned **Play Workshop** entry point that starts the 18-hole progression directly. The original Open-Golf Play button, numbered sample-level selector and sample level files are not part of the packaged game.
 - A Golfgame-styled main menu and Workshop entry panel, custom teal multiplayer UI, hole-complete wording and in-game HUD for hole number, par, strokes and the current player list.
 - Third-person ball gameplay and course physics built on the pinned Open-Golf renderer/physics/level-loading foundation.
-- A C11 UDP LAN lobby for up to 16 players, with host/find/join controls and a multiplayer diagnostics tab.
+- A 16-player LAN lobby powered by the separate MultiNet C11 library, with automatic discovery fallbacks, host/find/join controls and a multiplayer diagnostics tab.
 
 **Important multiplayer limitation:** the underlying gameplay simulation still has one physical ball per client. Remote balls are currently presentation snapshots, not independently simulated balls sharing the same collision world. The HUD is not yet a persistent 18-hole scorecard, and hats/trails/cosmetic unlocks are not implemented yet.
 
@@ -29,7 +29,7 @@ For an existing checkout:
 
 ## Build
 
-Requires CMake 3.16+ and a C11/C++11 compiler.
+Requires CMake 3.16+, a C11/C++11 compiler and Git for the pinned MultiNet dependency. CMake fetches MultiNet automatically. For offline development, clone MultiNet separately and pass `-DGOLFGAME_MULTINET_SOURCE_DIR=/path/to/multinet` when configuring Golfgame.
 
 ### Windows (Visual Studio)
 

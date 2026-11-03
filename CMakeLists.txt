@@ -16,15 +16,37 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(GOLFGAME_BUILD_OPEN_GOLF "Build the integrated Open-Golf game client" ON)
 
+# MultiNet is the reusable transport. Pin a known commit so Golfgame builds
+# are reproducible; a local checkout is available for offline development.
+include(FetchContent)
+set(MULTINET_BUILD_DEMO OFF CACHE BOOL "Disable MultiNet's standalone demo in Golfgame" FORCE)
+set(MULTINET_BUILD_TESTS OFF CACHE BOOL "Disable MultiNet's standalone tests in Golfgame" FORCE)
+set(MULTINET_BUILD_FUZZERS OFF CACHE BOOL "Disable MultiNet fuzz targets in Golfgame" FORCE)
+set(GOLFGAME_MULTINET_SOURCE_DIR "" CACHE PATH
+    "Optional local MultiNet checkout (offline/developer fallback)")
+
+if(GOLFGAME_MULTINET_SOURCE_DIR)
+    if(NOT EXISTS "${GOLFGAME_MULTINET_SOURCE_DIR}/CMakeLists.txt")
+        message(FATAL_ERROR "GOLFGAME_MULTINET_SOURCE_DIR does not contain MultiNet's CMakeLists.txt")
+    endif()
+    add_subdirectory("${GOLFGAME_MULTINET_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/multinet")
+else()
+    FetchContent_Declare(MultiNet
+        GIT_REPOSITORY https://github.com/yoimdoingstuff/multinet.git
+        GIT_TAG 101f6f3c360c2592697ba3ca5eac8935ee7cbe17
+        GIT_SHALLOW FALSE)
+    FetchContent_MakeAvailable(MultiNet)
+endif()
+
+if(NOT TARGET MultiNet::MultiNet)
+    message(FATAL_ERROR "MultiNet dependency did not provide the MultiNet::MultiNet target.")
+endif()
+
+# Keep the existing Golfgame-facing tg_net_* API as a compatibility adapter.
+# The networking implementation itself now lives in the separate MultiNet repo.
 add_library(tg_network STATIC src/network/tg_network.c)
 target_include_directories(tg_network PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/network")
-
-if(WIN32)
-    target_link_libraries(tg_network PUBLIC ws2_32)
-    target_compile_definitions(tg_network PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
-else()
-    target_compile_definitions(tg_network PRIVATE _POSIX_C_SOURCE=200809L)
-endif()
+target_link_libraries(tg_network PUBLIC MultiNet::MultiNet)
 
 add_executable(tg_net_demo src/demo/net_demo.c)
 target_link_libraries(tg_net_demo PRIVATE tg_network)
