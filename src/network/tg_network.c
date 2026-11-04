@@ -11,9 +11,12 @@ static tg_net_player g_players[TG_NET_MAX_PLAYERS];
 static tg_net_info g_empty_info;
 
 static void copy_text(char *destination, size_t capacity, const char *source) {
+    size_t length = 0u;
     if (!destination || capacity == 0u) return;
     if (!source) source = "";
-    (void)snprintf(destination, capacity, "%s", source);
+    while (length + 1u < capacity && source[length] != '\0') ++length;
+    if (length > 0u) memcpy(destination, source, length);
+    destination[length] = '\0';
 }
 
 static tg_net_status map_status(mn_status status) {

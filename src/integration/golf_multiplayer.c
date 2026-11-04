@@ -14,6 +14,7 @@
 
 static int multiplayer_ready;
 static int match_start_handled;
+static float mp_ping_timer;
 static char mp_player_name[TG_NET_PLAYER_NAME] = "Player";
 static char mp_room_name[TG_NET_ROOM_NAME] = "Golfgame Room";
 static char mp_direct_address[48] = "";
@@ -225,6 +226,7 @@ void golf_mp_leave(void) {
         tg_net_leave();
         clear_remote_players();
         match_start_handled = 0;
+        mp_ping_timer = 0.0f;
     }
 }
 
@@ -249,13 +251,21 @@ static int golf_mp_request_ping(void) {
     if (!multiplayer_ready) return 0;
     tg_net_get_info(&info);
     if (info.role == TG_NET_ROLE_CLIENT && info.status == TG_NET_STATUS_CONNECTED) {
-        return tg_net_ping(0);
+        if (tg_net_ping(0)) {
+            mp_ping_timer = 0.0f;
+            return 1;
+        }
+        return 0;
     }
     if (info.role == TG_NET_ROLE_HOST && info.status == TG_NET_STATUS_HOSTING) {
         players = tg_net_get_players(&count);
         for (i = 0; i < count && i < TG_NET_MAX_PLAYERS; ++i) {
             if (players[i].id != 0 && players[i].id != info.local_player_id) {
-                return tg_net_ping(players[i].id);
+                if (tg_net_ping(players[i].id)) {
+                    mp_ping_timer = 0.0f;
+                    return 1;
+                }
+                return 0;
             }
         }
     }
@@ -335,6 +345,13 @@ void golf_mp_update(float dt) {
     tg_net_get_info(&info);
     publish_local_ball(&info);
     update_remote_players(dt, &info);
+
+    mp_ping_timer += fmaxf(dt, 0.0f);
+    if (!info.ping_pending && mp_ping_timer >= 3.0f &&
+        (info.role == TG_NET_ROLE_HOST ||
+         (info.role == TG_NET_ROLE_CLIENT && info.status == TG_NET_STATUS_CONNECTED))) {
+        if (!golf_mp_request_ping()) mp_ping_timer = 2.0f;
+    }
 
     if (!info.match_started) {
         match_start_handled = 0;

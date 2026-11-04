@@ -39,7 +39,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Nearby networking
 
-- [x] Expose MultiNet round-trip latency and mDNS capability in Golfgame diagnostics; provide a user-triggered ping for clients and hosts.
+- [x] Expose MultiNet round-trip latency and mDNS capability in Golfgame diagnostics; provide automatic periodic ping plus a user-triggered test for clients and hosts.
 - [ ] Define a transport-independent connection API so gameplay is not coupled to UDP sockets.
 - [ ] Add LocalSend-inspired nearby discovery (mDNS/DNS-SD plus UDP fallback), a visible nearby-room list and explicit pairing.
 - [ ] Define a small, versioned Golfgame connection invitation that carries room ID, candidate endpoints, protocol capabilities and short-lived join credentials; never include long-lived secrets.
