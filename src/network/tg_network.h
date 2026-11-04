@@ -64,6 +64,10 @@ typedef struct tg_net_info {
     char room_name[TG_NET_ROOM_NAME];
     char local_name[TG_NET_PLAYER_NAME];
     char last_error[160];
+    float ping_ms;
+    uint8_t ping_available;
+    uint8_t ping_pending;
+    uint8_t mdns_available;
 } tg_net_info;
 
 int tg_net_init(void);
@@ -76,6 +80,8 @@ int tg_net_start_match(void);
 void tg_net_leave(void);
 void tg_net_update(float dt);
 void tg_net_set_local_player(const tg_net_player *player);
+/* Clients pass 0 to ping the host; hosts pass a connected peer's player ID. */
+int tg_net_ping(uint32_t target_player_id);
 void tg_net_get_info(tg_net_info *out_info);
 const tg_net_player *tg_net_get_players(size_t *out_count);
 

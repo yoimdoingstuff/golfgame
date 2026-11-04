@@ -23,7 +23,7 @@ An invitation transfers connection information; it does not make an unreachable 
 - Keep manual address and short room-code joining as fallbacks.
 - Evaluate standard ICE/STUN for NAT traversal where supported and permitted.
 - Provide a transparent, explicitly operated/approved relay fallback for peers that cannot connect directly.
-- Expose diagnostics: discovery source, candidate paths, selected transport, connection time, RTT, loss and actionable failure reason.
+- Expose diagnostics: discovery source, candidate paths, selected transport, connection time, RTT, loss and actionable failure reason. The current Golfgame UI surfaces measured round-trip latency and whether mDNS discovery is available; candidate-path and packet-loss reporting remain future work.
 - Do not silently proxy, tunnel or forward arbitrary network traffic. Any relay carries only authenticated, bounded Golfgame messages and is visible to participants.
 
 ## Proxy and obfuscation research

@@ -38,4 +38,14 @@ if ! grep -q 'SmokeHost(x=1.25,vx=0.75,strokes=7)' "$CLIENT_LOG"; then
   cat "$CLIENT_LOG" >&2
   exit 1
 fi
-echo "PASS: localhost UDP host/join, player identity, position, velocity and stroke replication in both directions"
+if ! grep -Eq 'RTT [0-9]+([.][0-9]+)? ms' "$HOST_LOG"; then
+  echo "Host did not complete a round-trip latency measurement." >&2
+  cat "$HOST_LOG" >&2
+  exit 1
+fi
+if ! grep -Eq 'RTT [0-9]+([.][0-9]+)? ms' "$CLIENT_LOG"; then
+  echo "Client did not complete a round-trip latency measurement." >&2
+  cat "$CLIENT_LOG" >&2
+  exit 1
+fi
+echo "PASS: localhost UDP host/join, identity, position, velocity, strokes and RTT measurement in both directions"

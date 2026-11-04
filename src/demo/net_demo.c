@@ -34,6 +34,8 @@ static void print_players(void) {
     printf("\r[%s] %s | players %u/%u | ",
         info.role==TG_NET_ROLE_HOST?"HOST":"CLIENT",info.room_name,
         (unsigned)info.player_count,(unsigned)info.max_players);
+    if (info.ping_available) printf("RTT %.1f ms | ", (double)info.ping_ms);
+    else if (info.ping_pending) printf("RTT measuring | ");
     for(i=0;i<count && i<TG_NET_MAX_PLAYERS;i++)
         printf("%s%s(x=%.2f,vx=%.2f,strokes=%u)",i?", ":"",players[i].name,
             (double)players[i].ball_x,(double)players[i].ball_vx,
@@ -53,6 +55,7 @@ static double monotonic_seconds(void) {
 int main(int argc,char **argv) {
     double last; float print_timer=0; tg_net_info info;
     tg_net_player local_player;
+    int ping_requested = 0;
     if(argc<2) { usage(argv[0]); return 0; }
     if(!tg_net_init()) {
         tg_net_get_info(&info);
@@ -105,6 +108,25 @@ int main(int argc,char **argv) {
             local_player.strokes = 7u;
             local_player.flags = 5u;
             tg_net_set_local_player(&local_player);
+        }
+        if (!ping_requested) {
+            if (info.role == TG_NET_ROLE_CLIENT &&
+                info.status == TG_NET_STATUS_CONNECTED) {
+                ping_requested = tg_net_ping(0);
+            } else if (info.role == TG_NET_ROLE_HOST &&
+                       info.status == TG_NET_STATUS_HOSTING) {
+                const tg_net_player *peers;
+                size_t peer_count = 0, peer_index;
+                peers = tg_net_get_players(&peer_count);
+                for (peer_index = 0; peer_index < peer_count &&
+                     peer_index < TG_NET_MAX_PLAYERS; ++peer_index) {
+                    if (peers[peer_index].id != 0 &&
+                        peers[peer_index].id != info.local_player_id) {
+                        ping_requested = tg_net_ping(peers[peer_index].id);
+                        break;
+                    }
+                }
+            }
         }
         print_timer+=dt;
         if(print_timer>=1.0f) {

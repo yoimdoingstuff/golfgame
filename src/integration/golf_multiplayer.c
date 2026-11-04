@@ -241,6 +241,27 @@ const tg_net_player *golf_mp_get_remote_players(size_t *out_count) {
     return mp_remote_players;
 }
 
+static int golf_mp_request_ping(void) {
+    tg_net_info info;
+    const tg_net_player *players;
+    size_t count = 0, i;
+
+    if (!multiplayer_ready) return 0;
+    tg_net_get_info(&info);
+    if (info.role == TG_NET_ROLE_CLIENT && info.status == TG_NET_STATUS_CONNECTED) {
+        return tg_net_ping(0);
+    }
+    if (info.role == TG_NET_ROLE_HOST && info.status == TG_NET_STATUS_HOSTING) {
+        players = tg_net_get_players(&count);
+        for (i = 0; i < count && i < TG_NET_MAX_PLAYERS; ++i) {
+            if (players[i].id != 0 && players[i].id != info.local_player_id) {
+                return tg_net_ping(players[i].id);
+            }
+        }
+    }
+    return 0;
+}
+
 static void multiplayer_debug_tab(void) {
     tg_net_info info;
     size_t count = 0;
@@ -254,6 +275,14 @@ static void multiplayer_debug_tab(void) {
     igText("Status: %s", status_name(info.status));
     igText("Room: %s", info.room_name[0] ? info.room_name : "(none)");
     igText("Players: %u / %u", (unsigned)info.player_count, (unsigned)info.max_players);
+    if (info.ping_available) igText("Round-trip latency: %.1f ms", info.ping_ms);
+    else if (info.ping_pending) igText("Round-trip latency: measuring...");
+    else igText("Round-trip latency: not measured");
+    igText("mDNS discovery: %s", info.mdns_available ? "available" : "unavailable");
+    if (igButton("Measure ping", (ImVec2){0, 0})) {
+        if (!golf_mp_request_ping())
+            igText("Connect to a peer before measuring ping.");
+    }
 
     if (igButton("Host LAN test room", (ImVec2){0, 0})) {
         golf_mp_host("Player", "Golfgame LAN Match");
@@ -462,7 +491,7 @@ void golf_mp_ui_update(void) {
         int hole = golf->level_num + 1;
         int par = (hole >= 1 && hole <= 18) ? hole_par[hole - 1] : 3;
         igSetNextWindowPos((ImVec2){18.0f, 18.0f}, ImGuiCond_Always, (ImVec2){0.0f, 0.0f});
-        igSetNextWindowSize((ImVec2){292.0f, 150.0f}, ImGuiCond_Always);
+        igSetNextWindowSize((ImVec2){292.0f, 170.0f}, ImGuiCond_Always);
         igSetNextWindowBgAlpha(0.90f);
         if (igBegin("Workshop##roundhud", NULL, flags)) {
             igText("HOLE %02d  /  18", hole);
@@ -485,6 +514,10 @@ void golf_mp_ui_update(void) {
             }
             igText("%u PLAYERS  /  %s", (unsigned)info.player_count,
                 info.status == TG_NET_STATUS_OFFLINE ? "PRACTICE" : status_name(info.status));
+            if (info.ping_available) igText("PING  %.1f ms", info.ping_ms);
+            else if (info.ping_pending) igText("PING  MEASURING");
+            else if (info.status == TG_NET_STATUS_CONNECTED ||
+                     info.status == TG_NET_STATUS_HOSTING) igText("PING  NOT MEASURED");
         }
         igEnd();
 
@@ -603,6 +636,14 @@ void golf_mp_ui_update(void) {
             igText("STATUS  %s", status_name(info.status));
             igTextWrapped("ROOM  %s", info.room_name);
             igText("PLAYERS  %u / %u", (unsigned)info.player_count, (unsigned)info.max_players);
+            if (info.ping_available) igText("ROUND-TRIP  %.1f ms", info.ping_ms);
+            else if (info.ping_pending) igText("ROUND-TRIP  measuring...");
+            else igText("ROUND-TRIP  not measured");
+            igText("mDNS discovery  %s", info.mdns_available ? "available" : "unavailable");
+            if (igButton("TEST CONNECTION", (ImVec2){292.0f, 30.0f})) {
+                if (!golf_mp_request_ping())
+                    fprintf(stderr, "[golfgame] Ping requires a connected peer.\\n");
+            }
             igSeparator();
             for (i = 0; i < player_count && i < TG_NET_MAX_PLAYERS; ++i)
                 igBulletText("%s  /  %u strokes", players[i].name, (unsigned)players[i].strokes);

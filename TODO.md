@@ -39,6 +39,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Nearby networking
 
+- [x] Expose MultiNet round-trip latency and mDNS capability in Golfgame diagnostics; provide a user-triggered ping for clients and hosts.
 - [ ] Define a transport-independent connection API so gameplay is not coupled to UDP sockets.
 - [ ] Add LocalSend-inspired nearby discovery (mDNS/DNS-SD plus UDP fallback), a visible nearby-room list and explicit pairing.
 - [ ] Define a small, versioned Golfgame connection invitation that carries room ID, candidate endpoints, protocol capabilities and short-lived join credentials; never include long-lived secrets.
@@ -48,7 +49,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [ ] Add an explicit, user-configured SOCKS5 proxy option and document its limitations for UDP/realtime traffic.
 - [ ] Research Tor SOCKS/obfs4 compatibility in an isolated, authorised test environment; measure latency and packet loss before considering any game transport.
 - [ ] Evaluate standard ICE/STUN connectivity negotiation and an explicitly operated/approved relay where permitted.
-- [ ] Add connection diagnostics showing discovery method, candidate paths, selected transport, RTT, loss and clear failure reasons without logging credentials.
+- [ ] Add connection diagnostics showing discovery method, candidate paths, selected transport, RTT, loss and clear failure reasons without logging credentials. (Current UI exposes RTT and mDNS availability; loss/candidate path detail remains outstanding.)
 - [ ] Test multicast-disabled networks, client isolation, VLAN separation, blocked UDP, proxy-only access and permitted relay scenarios. Respect network-owner policies.
 
 ## Known limitations

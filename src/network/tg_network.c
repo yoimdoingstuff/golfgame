@@ -182,6 +182,10 @@ void tg_net_set_local_player(const tg_net_player *player) {
     (void)mn_set_local_player(g_network, &converted);
 }
 
+int tg_net_ping(uint32_t target_player_id) {
+    return g_network ? mn_ping(g_network, target_player_id) : 0;
+}
+
 void tg_net_get_info(tg_net_info *out_info) {
     mn_info info;
     if (!out_info) return;
@@ -198,6 +202,10 @@ void tg_net_get_info(tg_net_info *out_info) {
     out_info->player_count = info.player_count;
     out_info->max_players = info.max_players;
     out_info->match_started = info.match_started;
+    out_info->ping_ms = info.ping_ms;
+    out_info->ping_available = info.ping_available;
+    out_info->ping_pending = info.ping_pending;
+    out_info->mdns_available = info.mdns_available;
     copy_text(out_info->room_name, sizeof(out_info->room_name), info.room_name);
     copy_text(out_info->local_name, sizeof(out_info->local_name), info.local_name);
     copy_text(out_info->last_error, sizeof(out_info->last_error), info.last_error);
