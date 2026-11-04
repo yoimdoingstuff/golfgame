@@ -33,7 +33,7 @@ if(GOLFGAME_MULTINET_SOURCE_DIR)
 else()
     FetchContent_Declare(MultiNet
         GIT_REPOSITORY https://github.com/yoimdoingstuff/multinet.git
-        GIT_TAG b3b655d7b7630ca4a6a274cc75073a5543d872a0
+        GIT_TAG 55522042cb607ed9ef90f063253819b9f94ce65c
         GIT_SHALLOW FALSE)
     FetchContent_MakeAvailable(MultiNet)
 endif()
