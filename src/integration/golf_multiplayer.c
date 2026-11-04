@@ -326,6 +326,92 @@ static void golf_mp_pop_theme(void) {
     igPopStyleColor(14);
 }
 
+
+static uint32_t mp_imgui_color(uint32_t rgba) {
+    uint32_t r = (rgba >> 24) & 0xFFu;
+    uint32_t g = (rgba >> 16) & 0xFFu;
+    uint32_t b = (rgba >> 8) & 0xFFu;
+    uint32_t a = rgba & 0xFFu;
+    return r | (g << 8) | (b << 16) | (a << 24);
+}
+
+static void draw_ball_nameplate(ImDrawList *draw_list,
+        const char *name, vec3 ball_pos, uint32_t ball_colour,
+        const golf_graphics_t *graphics, float ball_radius) {
+    char safe_name[TG_NET_PLAYER_NAME];
+    size_t name_length;
+    vec3 label_world = ball_pos;
+    vec2 screen;
+    float width, left, top;
+    ImVec2 p_min, p_max, dot_pos, text_pos;
+
+    if (!draw_list || !name || !graphics) return;
+
+    snprintf(safe_name, sizeof(safe_name), "%.*s",
+        (int)sizeof(safe_name) - 1, name);
+    name_length = strlen(safe_name);
+    if (name_length == 0) return;
+
+    label_world.y += fmaxf(ball_radius * 2.5f, 0.24f);
+    if (vec3_dot(vec3_sub(label_world, graphics->cam_pos),
+            graphics->cam_dir) <= 0.10f) {
+        return;
+    }
+
+    screen = golf_graphics_world_to_screen(label_world);
+    if (!isfinite(screen.x) || !isfinite(screen.y) ||
+        screen.x < graphics->viewport_pos.x - 32.0f ||
+        screen.y < graphics->viewport_pos.y - 28.0f ||
+        screen.x > graphics->viewport_pos.x + graphics->viewport_size.x + 32.0f ||
+        screen.y > graphics->viewport_pos.y + graphics->viewport_size.y + 28.0f) {
+        return;
+    }
+
+    width = (float)name_length * 7.0f + 24.0f;
+    left = screen.x - width * 0.5f;
+    top = screen.y - 23.0f;
+    p_min = (ImVec2){left, top};
+    p_max = (ImVec2){left + width, top + 20.0f};
+    dot_pos = (ImVec2){left + 9.0f, top + 10.0f};
+    text_pos = (ImVec2){left + 17.0f, top + 3.0f};
+
+    if (ball_colour == 0) ball_colour = TG_NET_DEFAULT_BALL_COLOUR_RGBA;
+    ImDrawList_AddRectFilled(draw_list, p_min, p_max, 0xD911171Eu, 5.0f, 0);
+    ImDrawList_AddCircleFilled(draw_list, dot_pos, 3.5f,
+        mp_imgui_color(ball_colour), 12);
+    ImDrawList_AddText_Vec2(draw_list, text_pos, 0xFFFFFFFFu,
+        safe_name, safe_name + name_length);
+}
+
+static void draw_live_ball_nameplates(const tg_net_info *info,
+        const golf_game_t *game, const golf_graphics_t *graphics) {
+    size_t remote_count = 0;
+    size_t i;
+    const tg_net_player *remote_players;
+    uint32_t local_colour = TG_NET_DEFAULT_BALL_COLOUR_RGBA;
+    ImDrawList *draw_list;
+
+    if (!info || !game || !graphics || info->role == TG_NET_ROLE_OFFLINE) return;
+
+    draw_list = igGetForegroundDrawList_Nil();
+    if (!draw_list) return;
+
+    if (info->local_player_id > 0 &&
+        info->local_player_id <= TG_NET_MAX_PLAYERS) {
+        local_colour = mp_player_colors[info->local_player_id - 1];
+    }
+    draw_ball_nameplate(draw_list, mp_player_name, game->ball.draw_pos,
+        local_colour, graphics, game->ball.radius);
+
+    remote_players = golf_mp_get_remote_players(&remote_count);
+    for (i = 0; i < remote_count && i < TG_NET_MAX_PLAYERS; ++i) {
+        const tg_net_player *player = &remote_players[i];
+        draw_ball_nameplate(draw_list, player->name,
+            V3(player->ball_x, player->ball_y, player->ball_z),
+            player->ball_colour_rgba, graphics, game->ball.radius);
+    }
+}
+
 void golf_mp_ui_update(void) {
     tg_net_info info;
     tg_net_room rooms[TG_NET_MAX_ROOMS];
@@ -397,6 +483,7 @@ void golf_mp_ui_update(void) {
             }
         }
         igEnd();
+        draw_live_ball_nameplates(&info, game, graphics);
         golf_mp_pop_theme();
         return;
     }

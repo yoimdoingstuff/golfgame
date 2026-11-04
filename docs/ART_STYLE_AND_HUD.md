@@ -44,7 +44,7 @@ Our visual treatment uses a dark teal translucent panel, pale text, aqua highlig
 
 ## First-pass HUD
 
-The current Golfgame HUD shows Workshop hole number, par, local strokes, shot power while aiming, player count and a compact connected-player list. It is a functional first pass, not the final scorecard: cumulative 18-hole totals, tab-to-expand scorecard, player labels beside the balls and host-verified results remain future work.
+The current Golfgame HUD shows Workshop hole number, par, local strokes, shot power while aiming, player count and a compact connected-player list. Small world-anchored nameplates now identify the local and remote balls, with a colour marker matching each ball. The HUD is still a functional first pass, not the final scorecard: cumulative 18-hole totals, a tab-to-expand scorecard and host-verified results remain future work.
 
 ## Ball cosmetics
 
