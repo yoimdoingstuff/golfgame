@@ -14,6 +14,8 @@ extern "C" {
 #define TG_NET_ROOM_NAME 32
 #define TG_NET_DEFAULT_PORT 27890
 #define TG_NET_DEFAULT_BALL_COLOUR_RGBA 0xFFFFFFFFu
+#define TG_NET_MAX_MESSAGE_BYTES 768
+#define TG_NET_MESSAGE_QUEUE_CAPACITY 32
 
 typedef enum tg_net_role {
     TG_NET_ROLE_OFFLINE = 0,
@@ -53,6 +55,13 @@ typedef struct tg_net_room {
     uint32_t room_id;
 } tg_net_room;
 
+typedef struct tg_net_message {
+    uint32_t sender_id;
+    uint16_t channel;
+    uint16_t data_size;
+    uint8_t data[TG_NET_MAX_MESSAGE_BYTES];
+} tg_net_message;
+
 typedef struct tg_net_info {
     tg_net_status status;
     tg_net_role role;
@@ -82,6 +91,9 @@ void tg_net_update(float dt);
 void tg_net_set_local_player(const tg_net_player *player);
 /* Clients pass 0 to ping the host; hosts pass a connected peer's player ID. */
 int tg_net_ping(uint32_t target_player_id);
+int tg_net_send_reliable_message(uint32_t target_player_id, uint16_t channel,
+    const void *data, size_t size);
+int tg_net_poll_message(tg_net_message *out_message);
 void tg_net_get_info(tg_net_info *out_info);
 const tg_net_player *tg_net_get_players(size_t *out_count);
 

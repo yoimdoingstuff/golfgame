@@ -9,6 +9,34 @@
 static mn_instance *g_network;
 static tg_net_player g_players[TG_NET_MAX_PLAYERS];
 static tg_net_info g_empty_info;
+static tg_net_message g_message_queue[TG_NET_MESSAGE_QUEUE_CAPACITY];
+static size_t g_message_head;
+static size_t g_message_count;
+
+static void clear_message_queue(void) {
+    memset(g_message_queue, 0, sizeof(g_message_queue));
+    g_message_head = 0u;
+    g_message_count = 0u;
+}
+
+static void enqueue_message(const mn_event *event) {
+    size_t index;
+    tg_net_message *message;
+    if (!event || event->type != MN_EVENT_MESSAGE ||
+        event->data_size > TG_NET_MAX_MESSAGE_BYTES) return;
+    if (g_message_count == TG_NET_MESSAGE_QUEUE_CAPACITY) {
+        g_message_head = (g_message_head + 1u) % TG_NET_MESSAGE_QUEUE_CAPACITY;
+        --g_message_count;
+    }
+    index = (g_message_head + g_message_count) % TG_NET_MESSAGE_QUEUE_CAPACITY;
+    message = &g_message_queue[index];
+    memset(message, 0, sizeof(*message));
+    message->sender_id = event->player_id;
+    message->channel = event->channel;
+    message->data_size = event->data_size;
+    if (event->data_size > 0u) memcpy(message->data, event->data, event->data_size);
+    ++g_message_count;
+}
 
 static void copy_text(char *destination, size_t capacity, const char *source) {
     size_t length = 0u;
@@ -92,6 +120,7 @@ int tg_net_init(void) {
     mn_config config;
     if (g_network) return 1;
     memset(g_players, 0, sizeof(g_players));
+    clear_message_queue();
     memset(&g_empty_info, 0, sizeof(g_empty_info));
     g_empty_info.role = TG_NET_ROLE_OFFLINE;
     g_empty_info.status = TG_NET_STATUS_OFFLINE;
@@ -112,6 +141,7 @@ void tg_net_shutdown(void) {
         mn_destroy(g_network);
         g_network = NULL;
     }
+    clear_message_queue();
     memset(g_players, 0, sizeof(g_players));
     memset(&g_empty_info, 0, sizeof(g_empty_info));
     g_empty_info.role = TG_NET_ROLE_OFFLINE;
@@ -166,6 +196,7 @@ int tg_net_start_match(void) {
 
 void tg_net_leave(void) {
     if (g_network) mn_leave(g_network);
+    clear_message_queue();
     memset(g_players, 0, sizeof(g_players));
 }
 
@@ -173,9 +204,11 @@ void tg_net_update(float dt) {
     mn_event event;
     if (!g_network) return;
     mn_update(g_network, dt);
-    /* The legacy interface exposes snapshots instead of an event queue.
-       Drain MultiNet events so the bounded queue cannot fill unnoticed. */
-    while (mn_poll_event(g_network, &event)) { }
+    /* Preserve application messages for the game while consuming lifecycle,
+       pairing and delivery events that this compatibility API does not expose. */
+    while (mn_poll_event(g_network, &event)) {
+        if (event.type == MN_EVENT_MESSAGE) enqueue_message(&event);
+    }
 }
 
 void tg_net_set_local_player(const tg_net_player *player) {
@@ -187,6 +220,21 @@ void tg_net_set_local_player(const tg_net_player *player) {
 
 int tg_net_ping(uint32_t target_player_id) {
     return g_network ? mn_ping(g_network, target_player_id) : 0;
+}
+
+int tg_net_send_reliable_message(uint32_t target_player_id, uint16_t channel,
+                                 const void *data, size_t size) {
+    if (!g_network || !data || size == 0u || size > TG_NET_MAX_MESSAGE_BYTES) return 0;
+    return mn_send_reliable_message(g_network, target_player_id, channel, data, size);
+}
+
+int tg_net_poll_message(tg_net_message *out_message) {
+    if (!out_message || g_message_count == 0u) return 0;
+    *out_message = g_message_queue[g_message_head];
+    memset(&g_message_queue[g_message_head], 0, sizeof(g_message_queue[g_message_head]));
+    g_message_head = (g_message_head + 1u) % TG_NET_MESSAGE_QUEUE_CAPACITY;
+    --g_message_count;
+    return 1;
 }
 
 void tg_net_get_info(tg_net_info *out_info) {

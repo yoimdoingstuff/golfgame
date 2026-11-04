@@ -38,6 +38,7 @@ Upstream gameplay stores one ball in golf_game_t. Full simultaneous multiplayer 
 3. Run collision and movement for each active ball against the same course and moving obstacles.
 4. Render every ball with stable name labels and visual-only cosmetics.
 5. Interpolate remote snapshots without letting packet jitter affect local input. The adapter preserves linear velocity and applies at most 40 ms of prediction, capped at 0.18 course units, before visual smoothing. This reduces visible snapshot lag but is not a substitute for independent ball physics or host-authoritative simulation.
+6. Use the compatibility adapter's bounded reliable-message queue for small, versioned match-control events. MultiNet delivery ACK/failure events are consumed internally; application messages are exposed to the game as a separate FIFO.
 6. Preserve completed balls at the cup while others finish.
 7. Make the host authoritative for shots, strokes, hole completion and 18-hole results.
 

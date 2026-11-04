@@ -48,4 +48,16 @@ if ! grep -Eq 'RTT [0-9]+([.][0-9]+)? ms' "$CLIENT_LOG"; then
   cat "$CLIENT_LOG" >&2
   exit 1
 fi
-echo "PASS: localhost UDP host/join, identity, position, velocity, strokes and RTT measurement in both directions"
+if ! grep -q 'MSG channel=77 sender=.* payload=client-to-host' "$HOST_LOG"; then
+  echo "Host did not receive the reliable client-to-host application message." >&2
+  cat "$HOST_LOG" >&2
+  cat "$CLIENT_LOG" >&2
+  exit 1
+fi
+if ! grep -q 'MSG channel=78 sender=.* payload=host-broadcast' "$CLIENT_LOG"; then
+  echo "Client did not receive the reliable host broadcast application message." >&2
+  cat "$HOST_LOG" >&2
+  cat "$CLIENT_LOG" >&2
+  exit 1
+fi
+echo "PASS: localhost UDP host/join, identity, position, velocity, strokes, RTT and reliable app messages in both directions"

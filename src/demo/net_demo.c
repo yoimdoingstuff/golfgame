@@ -56,6 +56,8 @@ int main(int argc,char **argv) {
     double last; float print_timer=0; tg_net_info info;
     tg_net_player local_player;
     int ping_requested = 0;
+    int sent_role_message = 0;
+    int sent_host_broadcast = 0;
     if(argc<2) { usage(argv[0]); return 0; }
     if(!tg_net_init()) {
         tg_net_get_info(&info);
@@ -109,6 +111,21 @@ int main(int argc,char **argv) {
             local_player.flags = 5u;
             tg_net_set_local_player(&local_player);
         }
+        if (info.role == TG_NET_ROLE_CLIENT &&
+            info.status == TG_NET_STATUS_CONNECTED && !sent_role_message) {
+            static const char payload[] = "client-to-host";
+            sent_role_message = tg_net_send_reliable_message(0, 77, payload,
+                sizeof(payload) - 1u);
+        } else if (info.role == TG_NET_ROLE_HOST &&
+                   info.status == TG_NET_STATUS_HOSTING && !sent_host_broadcast) {
+            size_t peer_count = 0;
+            (void)tg_net_get_players(&peer_count);
+            if (peer_count >= 2u) {
+                static const char payload[] = "host-broadcast";
+                sent_host_broadcast = tg_net_send_reliable_message(0, 78, payload,
+                    sizeof(payload) - 1u);
+            }
+        }
         if (!ping_requested) {
             if (info.role == TG_NET_ROLE_CLIENT &&
                 info.status == TG_NET_STATUS_CONNECTED) {
@@ -126,6 +143,15 @@ int main(int argc,char **argv) {
                         break;
                     }
                 }
+            }
+        }
+        {
+            tg_net_message message;
+            while (tg_net_poll_message(&message)) {
+                printf("\\nMSG channel=%u sender=%u payload=%.*s\\n",
+                    (unsigned)message.channel, (unsigned)message.sender_id,
+                    (int)message.data_size, (const char *)message.data);
+                fflush(stdout);
             }
         }
         print_timer+=dt;
