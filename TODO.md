@@ -31,9 +31,10 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [ ] Refactor the single Open-Golf golf_game_t ball into independent per-player simulation states.
 - [ ] Simulate every active ball against the same course and moving obstacles; remote balls must collide and interact, not just render snapshots.
 - [ ] Keep simultaneous putting. Do not add turn queues or a current-player turn system.
+- [x] Add a ready-up gate after a hole: host advances only after every connected player has holed out and selected Next Hole; solo play advances immediately.
 - [x] Add world-anchored nameplates above the local and smoothed remote balls; retain player colours as a second identity cue.
 - [ ] Add ball hats/accessories and trails; keep all cosmetics visual-only.
-- [ ] Make the host validate shots, strokes, hole completion and final match results.
+- [ ] Make the host validate shots, strokes, hole completion and final match results. (The current ready-up gate coordinates client-reported finished/ready flags; it is not host-authoritative anti-cheat validation.)
 - [ ] Preserve completed balls at the cup while other players finish.
 - [ ] Build a persistent 18-hole scorecard, total strokes, par comparisons, winner/results screen and rematch flow.
 - [ ] Test 2, 4, 8 and 16 players, packet loss, disconnects and host shutdown.

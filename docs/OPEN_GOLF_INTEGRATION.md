@@ -49,3 +49,7 @@ The host currently relays client-reported state and is not authoritative or secu
 scripts/capture-linux.sh launches the Linux game under Xvfb with Mesa software OpenGL. It captures startup/main menu, hosted LAN lobby, course-pack selector, gameplay and diagnostics checkpoints, then stores screenshots and runtime stdout/stderr under logs/. The GitHub Actions visual job uploads the logs even when capture fails.
 
 The screenshots should now visibly show Golfgame branding, one Workshop course-pack card and original Workshop hole geometry. They validate the shared renderer/UI and course loader; they do not replace physical Windows runtime and multi-PC LAN tests.
+
+## Synchronized hole progression
+
+When a networked player reaches the finish screen and selects Next Hole, the game marks that player's replicated flags as ready. The host waits until every connected peer has a valid in-game position, the finished bit, and the ready-next bit. It then broadcasts a versioned, reliable control message on the Golfgame application channel. Clients accept this message only from the host player ID and only for the immediate next level while their own ball is finished and ready. Offline/solo progression keeps the upstream immediate path. Readiness is based on client-reported state, so this coordinates a friendly LAN session but is not a host-authoritative anti-cheat system.

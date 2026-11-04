@@ -42,7 +42,7 @@ typedef struct tg_net_player {
     uint16_t hat_id;           /* 0 means no hat/accessory. */
     uint16_t trail_id;         /* 0 means no trail. */
     uint16_t strokes;
-    uint8_t flags;             /* Bit 0: moving, bit 1: finished, bit 2: in-game position valid. */
+    uint8_t flags;             /* Bit 0: moving, bit 1: finished, bit 2: in-game position valid, bit 3: ready for next hole. */
 } tg_net_player;
 
 typedef struct tg_net_room {

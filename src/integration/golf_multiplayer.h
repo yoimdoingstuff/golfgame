@@ -12,6 +12,9 @@ int golf_mp_host(const char *player_name, const char *room_name);
 int golf_mp_discover(void);
 int golf_mp_join(const char *ipv4_or_hostname, const char *player_name);
 int golf_mp_start_match(void);
+/* Return 1 when multiplayer has handled the request; 0 keeps solo flow. */
+int golf_mp_request_next_hole(int next_level);
+int golf_mp_is_waiting_for_next_hole(void);
 void golf_mp_leave(void);
 
 void golf_mp_get_info(tg_net_info *out_info);

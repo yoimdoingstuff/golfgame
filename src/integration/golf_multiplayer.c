@@ -15,6 +15,9 @@
 static int multiplayer_ready;
 static int match_start_handled;
 static float mp_ping_timer;
+static int mp_local_ready;
+static int mp_next_hole_level = -1;
+static int mp_advance_sent;
 static char mp_player_name[TG_NET_PLAYER_NAME] = "Player";
 static char mp_room_name[TG_NET_ROOM_NAME] = "Golfgame Room";
 static char mp_direct_address[48] = "";
@@ -31,6 +34,12 @@ typedef struct golf_mp_remote_slot {
 static golf_mp_remote_slot mp_remote_slots[TG_NET_MAX_PLAYERS];
 static tg_net_player mp_remote_players[TG_NET_MAX_PLAYERS];
 static size_t mp_remote_count;
+
+#define GOLF_MP_CONTROL_CHANNEL 0x4747u
+#define GOLF_MP_CONTROL_BYTES 8u
+#define GOLF_MP_FLAG_READY_NEXT 8u
+#define GOLF_MP_HOST_PLAYER_ID 1u
+#define GOLF_MP_CONTROL_ADVANCE_HOLE 1u
 
 static const uint32_t mp_player_colors[TG_NET_MAX_PLAYERS] = {
     0xFFFFFFFFu, 0xFF5C5CFFu, 0x4D9DE0FFu, 0xF2C14EFFu,
@@ -194,6 +203,8 @@ static void publish_local_ball(const tg_net_info *info) {
         (game->stroke_count > 65535 ? 65535 : game->stroke_count));
     player.flags |= 4u; /* Valid in-game ball position. */
     if (game->ball.is_moving) player.flags |= 1u;
+    if (mp_local_ready && game->state == GOLF_GAME_STATE_FINISHED)
+        player.flags |= GOLF_MP_FLAG_READY_NEXT;
     if (game->ball.is_in_hole || game->state == GOLF_GAME_STATE_CELEBRATION ||
         game->state == GOLF_GAME_STATE_FINISHED) {
         player.flags |= 2u;
@@ -218,7 +229,39 @@ int golf_mp_join(const char *ipv4_or_hostname, const char *player_name) {
 }
 
 int golf_mp_start_match(void) {
-    return multiplayer_ready ? tg_net_start_match() : 0;
+    if (!multiplayer_ready) return 0;
+    mp_local_ready = 0;
+    mp_next_hole_level = -1;
+    mp_advance_sent = 0;
+    return tg_net_start_match();
+}
+
+int golf_mp_request_next_hole(int next_level) {
+    tg_net_info info;
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+
+    if (!multiplayer_ready) return 0;
+    tg_net_get_info(&info);
+    if (info.role == TG_NET_ROLE_OFFLINE ||
+        (info.role == TG_NET_ROLE_CLIENT && info.status != TG_NET_STATUS_CONNECTED) ||
+        (info.role == TG_NET_ROLE_HOST && info.status != TG_NET_STATUS_HOSTING)) {
+        return 0;
+    }
+    if (golf->state != GOLF_STATE_IN_GAME ||
+        game->state != GOLF_GAME_STATE_FINISHED) return 1;
+    if (next_level < 0 || next_level >= 18) return 1;
+
+    if (!mp_local_ready) {
+        mp_local_ready = 1;
+        mp_next_hole_level = next_level;
+        mp_advance_sent = 0;
+    }
+    return 1;
+}
+
+int golf_mp_is_waiting_for_next_hole(void) {
+    return mp_local_ready;
 }
 
 void golf_mp_leave(void) {
@@ -227,8 +270,10 @@ void golf_mp_leave(void) {
         clear_remote_players();
         match_start_handled = 0;
         mp_ping_timer = 0.0f;
-    }
-}
+        mp_local_ready = 0;
+        mp_next_hole_level = -1;
+        mp_advance_sent = 0;
+    }}
 
 void golf_mp_get_info(tg_net_info *out_info) {
     if (out_info) tg_net_get_info(out_info);
@@ -241,6 +286,80 @@ const tg_net_player *golf_mp_get_players(size_t *out_count) {
 const tg_net_player *golf_mp_get_remote_players(size_t *out_count) {
     if (out_count) *out_count = mp_remote_count;
     return mp_remote_players;
+}
+
+static void start_next_hole_local(int next_level) {
+    mp_local_ready = 0;
+    mp_next_hole_level = -1;
+    mp_advance_sent = 0;
+    golf_start_level(next_level);
+}
+
+static void process_match_control_messages(const tg_net_info *info) {
+    tg_net_message message;
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+
+    while (tg_net_poll_message(&message)) {
+        int next_level;
+        if (message.channel != GOLF_MP_CONTROL_CHANNEL ||
+            message.data_size != GOLF_MP_CONTROL_BYTES ||
+            memcmp(message.data, "GGH1", 4u) != 0 ||
+            message.data[4] != 1u ||
+            message.data[5] != GOLF_MP_CONTROL_ADVANCE_HOLE) {
+            continue;
+        }
+        /* MultiNet assigns the host player ID 1 at room creation. Clients
+           cannot advance themselves or accept another client as the host. */
+        if (info->role != TG_NET_ROLE_CLIENT ||
+            message.sender_id != GOLF_MP_HOST_PLAYER_ID) continue;
+
+        next_level = (int)message.data[6];
+        if (message.data[7] != 0u ||
+            next_level < 0 || next_level >= 18 ||
+            golf->state != GOLF_STATE_IN_GAME ||
+            game->state != GOLF_GAME_STATE_FINISHED ||
+            !mp_local_ready ||
+            next_level != golf->level_num + 1) {
+            continue;
+        }
+        start_next_hole_local(next_level);
+    }
+}
+
+static void host_try_advance_hole(const tg_net_info *info) {
+    const tg_net_player *players;
+    size_t count = 0, i;
+    uint8_t payload[GOLF_MP_CONTROL_BYTES] = {
+        'G', 'G', 'H', '1', 1u, GOLF_MP_CONTROL_ADVANCE_HOLE, 0u, 0u
+    };
+    int found_remote = 0;
+
+    if (!info || info->role != TG_NET_ROLE_HOST ||
+        !mp_local_ready || mp_advance_sent ||
+        mp_next_hole_level < 0 || mp_next_hole_level >= 18) return;
+
+    players = tg_net_get_players(&count);
+    for (i = 0; i < count && i < TG_NET_MAX_PLAYERS; ++i) {
+        const tg_net_player *player = &players[i];
+        if (player->id == 0 || player->id == info->local_player_id) continue;
+        found_remote = 1;
+        if ((player->flags & 4u) == 0u ||
+            (player->flags & 2u) == 0u ||
+            (player->flags & GOLF_MP_FLAG_READY_NEXT) == 0u) {
+            return;
+        }
+    }
+
+    payload[6] = (uint8_t)mp_next_hole_level;
+    if (found_remote && !tg_net_send_reliable_message(0,
+            GOLF_MP_CONTROL_CHANNEL, payload, sizeof(payload))) {
+        return;
+    }
+
+    /* No remote peers means a solo host: keep the single-player flow instant. */
+    mp_advance_sent = 1;
+    start_next_hole_local((int)payload[6]);
 }
 
 static int golf_mp_request_ping(void) {
@@ -345,6 +464,8 @@ void golf_mp_update(float dt) {
     tg_net_get_info(&info);
     publish_local_ball(&info);
     update_remote_players(dt, &info);
+    process_match_control_messages(&info);
+    host_try_advance_hole(&info);
 
     mp_ping_timer += fmaxf(dt, 0.0f);
     if (!info.ping_pending && mp_ping_timer >= 3.0f &&
@@ -516,7 +637,9 @@ void golf_mp_ui_update(void) {
             igText("PAR  %d", par);
             igSameLine(105.0f, 12.0f);
             igText("STROKES  %d", game->stroke_count);
-            if (game->state == GOLF_GAME_STATE_AIMING) {
+            if (mp_local_ready) {
+                igText("WAITING FOR THE OTHER PLAYERS");
+            } else if (game->state == GOLF_GAME_STATE_AIMING) {
                 float power = game->aim_line.power * 100.0f;
                 if (power < 0.0f) power = 0.0f;
                 if (power > 100.0f) power = 100.0f;
@@ -547,8 +670,9 @@ void golf_mp_ui_update(void) {
             igSeparator();
             if (player_count == 0) igText("Solo practice");
             for (i = 0; i < player_count && i < TG_NET_MAX_PLAYERS; ++i) {
-                const char *state = (players[i].flags & 2u) ? "HOLED" :
-                    ((players[i].flags & 1u) ? "PUTTING" : "READY");
+                const char *state = (players[i].flags & GOLF_MP_FLAG_READY_NEXT) ? "NEXT READY" :
+                    ((players[i].flags & 2u) ? "HOLED" :
+                    ((players[i].flags & 1u) ? "PUTTING" : "READY"));
                 igBulletText("%s   %u   %s", players[i].name,
                     (unsigned)players[i].strokes, state);
             }

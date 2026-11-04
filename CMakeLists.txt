@@ -93,6 +93,16 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
         message(FATAL_ERROR "Could not safely patch Golfgame's course-pack flow.")
     endif()
 
+    # Coordinate finish-screen progression across every connected player.
+    execute_process(
+        COMMAND "\${CMAKE_COMMAND}"
+            "-DOPENGOLF_DIR=\${OPENGOLF_DIR}"
+            -P "\${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch-opengolf-multiplayer-progression.cmake"
+        RESULT_VARIABLE _opengolf_progression_patch_result)
+    if(NOT _opengolf_progression_patch_result EQUAL 0)
+        message(FATAL_ERROR "Could not safely patch synchronized multiplayer hole progression.")
+    endif()
+
     execute_process(
         COMMAND "${CMAKE_COMMAND}"
             "-DOPENGOLF_DIR=${OPENGOLF_DIR}"
