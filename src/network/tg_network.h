@@ -34,6 +34,7 @@ typedef struct tg_net_player {
     uint32_t id;
     char name[TG_NET_PLAYER_NAME];
     float ball_x, ball_y, ball_z;
+    float ball_vx, ball_vy, ball_vz; /* Replicated linear velocity for snapshot smoothing. */
     float ball_qx, ball_qy, ball_qz, ball_qw;
     uint32_t ball_colour_rgba; /* Packed 0xRRGGBBAA; visual only. */
     uint16_t hat_id;           /* 0 means no hat/accessory. */

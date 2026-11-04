@@ -89,6 +89,9 @@ static void update_remote_players(float dt, const tg_net_info *info) {
         const tg_net_player *incoming = &players[i];
         golf_mp_remote_slot *slot;
         float blend;
+        float target_x = incoming->ball_x;
+        float target_y = incoming->ball_y;
+        float target_z = incoming->ball_z;
 
         if (incoming->id == 0 || incoming->id == info->local_player_id) continue;
         /* Bit 2 means the sender has loaded a course and published a real ball
@@ -98,20 +101,37 @@ static void update_remote_players(float dt, const tg_net_info *info) {
         slot = find_remote_slot(incoming->id);
         if (!slot) continue;
 
+        /* Predict only a few milliseconds ahead from the replicated velocity.
+           Cap the offset so a malformed/stale velocity cannot move a ball far
+           from its last authoritative snapshot. */
+        if ((incoming->flags & 1u) != 0u &&
+            isfinite(incoming->ball_vx) && isfinite(incoming->ball_vy) &&
+            isfinite(incoming->ball_vz)) {
+            float speed = sqrtf(incoming->ball_vx * incoming->ball_vx +
+                incoming->ball_vy * incoming->ball_vy +
+                incoming->ball_vz * incoming->ball_vz);
+            if (isfinite(speed) && speed > 0.01f && speed <= 60.0f) {
+                float prediction_dt = fminf(0.04f, 0.18f / speed);
+                target_x += incoming->ball_vx * prediction_dt;
+                target_y += incoming->ball_vy * prediction_dt;
+                target_z += incoming->ball_vz * prediction_dt;
+            }
+        }
+
         if (!slot->active || slot->id != incoming->id) {
             memset(slot, 0, sizeof(*slot));
             slot->active = 1;
             slot->id = incoming->id;
-            slot->x = incoming->ball_x;
-            slot->y = incoming->ball_y;
-            slot->z = incoming->ball_z;
+            slot->x = target_x;
+            slot->y = target_y;
+            slot->z = target_z;
         }
 
-        /* Smooth the 10 Hz network snapshots without delaying local input. */
+        /* Smooth the 10 Hz snapshots toward a bounded velocity-predicted target. */
         blend = 1.0f - expf(-fmaxf(dt, 0.0f) * 18.0f);
-        slot->x += (incoming->ball_x - slot->x) * blend;
-        slot->y += (incoming->ball_y - slot->y) * blend;
-        slot->z += (incoming->ball_z - slot->z) * blend;
+        slot->x += (target_x - slot->x) * blend;
+        slot->y += (target_y - slot->y) * blend;
+        slot->z += (target_z - slot->z) * blend;
         slot->player = *incoming;
         slot->player.ball_x = slot->x;
         slot->player.ball_y = slot->y;
@@ -156,6 +176,11 @@ static void publish_local_ball(const tg_net_info *info) {
     player.ball_x = game->ball.pos.x;
     player.ball_y = game->ball.pos.y;
     player.ball_z = game->ball.pos.z;
+    if (game->ball.is_moving) {
+        player.ball_vx = game->ball.vel.x;
+        player.ball_vy = game->ball.vel.y;
+        player.ball_vz = game->ball.vel.z;
+    }
     player.ball_qx = game->ball.orientation.x;
     player.ball_qy = game->ball.orientation.y;
     player.ball_qz = game->ball.orientation.z;

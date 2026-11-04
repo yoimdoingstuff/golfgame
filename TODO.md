@@ -26,6 +26,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Multiplayer gameplay
 
+- [x] Carry linear ball velocity through the Golfgame-to-MultiNet adapter and apply a short, displacement-capped prediction before smoothing remote snapshots.
 - [ ] Refactor the single Open-Golf golf_game_t ball into independent per-player simulation states.
 - [ ] Simulate every active ball against the same course and moving obstacles; remote balls must collide and interact, not just render snapshots.
 - [ ] Keep simultaneous putting. Do not add turn queues or a current-player turn system.

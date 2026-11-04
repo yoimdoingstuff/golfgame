@@ -45,6 +45,9 @@ static void map_player(const mn_player *source, tg_net_player *destination) {
     destination->ball_x = source->position.x;
     destination->ball_y = source->position.y;
     destination->ball_z = source->position.z;
+    destination->ball_vx = source->velocity.x;
+    destination->ball_vy = source->velocity.y;
+    destination->ball_vz = source->velocity.z;
     destination->ball_qx = source->rotation.x;
     destination->ball_qy = source->rotation.y;
     destination->ball_qz = source->rotation.z;
@@ -67,6 +70,9 @@ static void map_local_player(const tg_net_player *source, mn_player *destination
     destination->position.x = source->ball_x;
     destination->position.y = source->ball_y;
     destination->position.z = source->ball_z;
+    destination->velocity.x = source->ball_vx;
+    destination->velocity.y = source->ball_vy;
+    destination->velocity.z = source->ball_vz;
     destination->rotation.x = source->ball_qx;
     destination->rotation.y = source->ball_qy;
     destination->rotation.z = source->ball_qz;
