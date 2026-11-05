@@ -33,6 +33,13 @@ typedef struct golf_mp_remote_slot {
     uint32_t id;
     float x, y, z;
     float missing_time;
+    float physics_time_behind;
+    int snapshot_valid;
+    float snapshot_x, snapshot_y, snapshot_z;
+    float snapshot_vx, snapshot_vy, snapshot_vz;
+    uint16_t snapshot_hole_index, snapshot_strokes;
+    uint32_t snapshot_flags;
+    golf_ball_state_t physics_ball;
     tg_net_player player;
 } golf_mp_remote_slot;
 
@@ -157,6 +164,8 @@ static void update_remote_players(float dt, const tg_net_info *info) {
     size_t player_count = 0;
     size_t i;
     const tg_net_player *players;
+    const float physics_step = 1.0f / 120.0f;
+    float frame_dt = fminf(fmaxf(dt, 0.0f), 0.10f);
 
     for (i = 0; i < TG_NET_MAX_PLAYERS; ++i) {
         mp_remote_slots[i].seen = 0;
@@ -174,54 +183,144 @@ static void update_remote_players(float dt, const tg_net_info *info) {
     for (i = 0; i < player_count; ++i) {
         const tg_net_player *incoming = &players[i];
         golf_mp_remote_slot *slot;
-        float blend;
-        float target_x = incoming->ball_x;
-        float target_y = incoming->ball_y;
-        float target_z = incoming->ball_z;
+        vec3 snapshot_pos;
+        vec3 snapshot_vel;
+        float snapshot_speed;
+        int snapshot_changed;
+        float correction_distance;
 
-        if (incoming->id == 0 || incoming->id == info->local_player_id) continue;
-        /* Bit 2 means the sender has loaded a course and published a real ball
-           position. Do not draw peers at the default world origin in the lobby. */
-        if ((incoming->flags & 4u) == 0) continue;
+        if (incoming->id == 0 || incoming->id == info->local_player_id ||
+            (incoming->flags & 4u) == 0u) {
+            continue;
+        }
 
         slot = find_remote_slot(incoming->id);
         if (!slot) continue;
 
-        /* Predict only a few milliseconds ahead from the replicated velocity.
-           Cap the offset so a malformed/stale velocity cannot move a ball far
-           from its last authoritative snapshot. */
-        if ((incoming->flags & 1u) != 0u &&
-            isfinite(incoming->ball_vx) && isfinite(incoming->ball_vy) &&
-            isfinite(incoming->ball_vz)) {
-            float speed = sqrtf(incoming->ball_vx * incoming->ball_vx +
-                incoming->ball_vy * incoming->ball_vy +
-                incoming->ball_vz * incoming->ball_vz);
-            if (isfinite(speed) && speed > 0.01f && speed <= 60.0f) {
-                float prediction_dt = fminf(0.04f, 0.18f / speed);
-                target_x += incoming->ball_vx * prediction_dt;
-                target_y += incoming->ball_vy * prediction_dt;
-                target_z += incoming->ball_vz * prediction_dt;
-            }
+        snapshot_pos = V3(incoming->ball_x, incoming->ball_y, incoming->ball_z);
+        snapshot_vel = (incoming->flags & 1u) != 0u ?
+            V3(incoming->ball_vx, incoming->ball_vy, incoming->ball_vz) :
+            V3(0, 0, 0);
+        snapshot_speed = vec3_length(snapshot_vel);
+        if (!isfinite(snapshot_speed) || snapshot_speed > 60.0f ||
+            !isfinite(snapshot_pos.x) || !isfinite(snapshot_pos.y) ||
+            !isfinite(snapshot_pos.z)) {
+            continue;
         }
 
         if (!slot->active || slot->id != incoming->id) {
             memset(slot, 0, sizeof(*slot));
             slot->active = 1;
             slot->id = incoming->id;
-            slot->x = target_x;
-            slot->y = target_y;
-            slot->z = target_z;
+            slot->physics_ball.start_pos = snapshot_pos;
+            slot->physics_ball.pos = snapshot_pos;
+            slot->physics_ball.draw_pos = snapshot_pos;
+            slot->physics_ball.vel = snapshot_vel;
+            slot->physics_ball.rot_vec = V3(0, 0, 0);
+            slot->physics_ball.orientation = QUAT(
+                incoming->ball_qx, incoming->ball_qy,
+                incoming->ball_qz, incoming->ball_qw);
+            slot->physics_ball.radius = golf_game_get()->ball.radius;
+            slot->physics_ball.is_moving = (incoming->flags & 1u) != 0u;
+            slot->physics_ball.is_in_hole = (incoming->flags & 2u) != 0u;
+            slot->physics_ball.time_out_of_water = 1.0f;
+            slot->physics_ball.time_out_of_bounds = -1.0f;
+            slot->snapshot_valid = 0;
+            slot->x = snapshot_pos.x;
+            slot->y = snapshot_pos.y;
+            slot->z = snapshot_pos.z;
         }
 
-        /* Smooth the 10 Hz snapshots toward a bounded velocity-predicted target. */
-        blend = 1.0f - expf(-fmaxf(dt, 0.0f) * 18.0f);
-        slot->x += (target_x - slot->x) * blend;
-        slot->y += (target_y - slot->y) * blend;
-        slot->z += (target_z - slot->z) * blend;
+        snapshot_changed = !slot->snapshot_valid ||
+            fabsf(incoming->ball_x - slot->snapshot_x) > 0.00001f ||
+            fabsf(incoming->ball_y - slot->snapshot_y) > 0.00001f ||
+            fabsf(incoming->ball_z - slot->snapshot_z) > 0.00001f ||
+            fabsf(incoming->ball_vx - slot->snapshot_vx) > 0.0001f ||
+            fabsf(incoming->ball_vy - slot->snapshot_vy) > 0.0001f ||
+            fabsf(incoming->ball_vz - slot->snapshot_vz) > 0.0001f ||
+            incoming->hole_index != slot->snapshot_hole_index ||
+            incoming->strokes != slot->snapshot_strokes ||
+            incoming->flags != slot->snapshot_flags;
+
+        if (snapshot_changed) {
+            vec3 current_pos = slot->physics_ball.pos;
+            vec3 error = vec3_sub(snapshot_pos, current_pos);
+            correction_distance = vec3_length(error);
+
+            /* Reconcile small prediction drift gradually; snap on hole changes,
+               finish-state changes or large corrections after packet loss. */
+            if (!slot->snapshot_valid ||
+                incoming->hole_index != slot->snapshot_hole_index ||
+                ((incoming->flags ^ slot->snapshot_flags) & 2u) != 0u ||
+                correction_distance > 0.65f) {
+                slot->physics_ball.pos = snapshot_pos;
+                slot->physics_ball.draw_pos = snapshot_pos;
+            }
+            else {
+                slot->physics_ball.pos = vec3_add(current_pos,
+                    vec3_scale(error, 0.55f));
+            }
+
+            slot->physics_ball.vel = snapshot_vel;
+            slot->physics_ball.orientation = quat_normalize(QUAT(
+                incoming->ball_qx, incoming->ball_qy,
+                incoming->ball_qz, incoming->ball_qw));
+            slot->physics_ball.is_moving = (incoming->flags & 1u) != 0u;
+            slot->physics_ball.is_in_hole = (incoming->flags & 2u) != 0u;
+            slot->physics_ball.is_out_of_bounds = false;
+            if (!slot->physics_ball.is_moving || slot->physics_ball.is_in_hole) {
+                slot->physics_ball.vel = V3(0, 0, 0);
+            }
+
+            slot->snapshot_x = incoming->ball_x;
+            slot->snapshot_y = incoming->ball_y;
+            slot->snapshot_z = incoming->ball_z;
+            slot->snapshot_vx = incoming->ball_vx;
+            slot->snapshot_vy = incoming->ball_vy;
+            slot->snapshot_vz = incoming->ball_vz;
+            slot->snapshot_hole_index = incoming->hole_index;
+            slot->snapshot_strokes = incoming->strokes;
+            slot->snapshot_flags = incoming->flags;
+            slot->snapshot_valid = 1;
+        }
+
+        if (slot->physics_ball.is_moving &&
+            !slot->physics_ball.is_in_hole &&
+            !slot->physics_ball.is_out_of_bounds &&
+            slot->physics_ball.radius > 0.0f) {
+            int ticks = 0;
+            slot->physics_time_behind += frame_dt;
+            while (slot->physics_time_behind >= physics_step && ticks < 12) {
+                vec3 previous = slot->physics_ball.pos;
+                golf_game_simulate_ball(&slot->physics_ball, physics_step);
+                slot->physics_ball.draw_pos = slot->physics_ball.pos;
+                (void)previous;
+                slot->physics_time_behind -= physics_step;
+                ++ticks;
+            }
+            if (ticks == 12 && slot->physics_time_behind >= physics_step) {
+                slot->physics_time_behind = fmodf(slot->physics_time_behind, physics_step);
+            }
+        } else {
+            slot->physics_time_behind = 0.0f;
+        }
+
+        /* A remote ball is now advanced against the same static and dynamic
+           course BVHs as the local ball; draw from the predicted state. */
+        slot->x = slot->physics_ball.draw_pos.x;
+        slot->y = slot->physics_ball.draw_pos.y;
+        slot->z = slot->physics_ball.draw_pos.z;
         slot->player = *incoming;
         slot->player.ball_x = slot->x;
         slot->player.ball_y = slot->y;
         slot->player.ball_z = slot->z;
+        slot->player.ball_vx = slot->physics_ball.vel.x;
+        slot->player.ball_vy = slot->physics_ball.vel.y;
+        slot->player.ball_vz = slot->physics_ball.vel.z;
+        slot->player.ball_qx = slot->physics_ball.orientation.x;
+        slot->player.ball_qy = slot->physics_ball.orientation.y;
+        slot->player.ball_qz = slot->physics_ball.orientation.z;
+        slot->player.ball_qw = slot->physics_ball.orientation.w;
         slot->missing_time = 0.0f;
         slot->seen = 1;
     }
@@ -232,7 +331,7 @@ static void update_remote_players(float dt, const tg_net_info *info) {
         if (!slot->active) continue;
 
         if (!slot->seen) {
-            slot->missing_time += fmaxf(dt, 0.0f);
+            slot->missing_time += frame_dt;
             if (slot->missing_time > 1.5f) {
                 memset(slot, 0, sizeof(*slot));
                 continue;
@@ -244,7 +343,6 @@ static void update_remote_players(float dt, const tg_net_info *info) {
         }
     }
 }
-
 
 /* A remote snapshot must be recent before it can push the local physical ball.
    Stale peers remain visible briefly, but are not treated as current collision

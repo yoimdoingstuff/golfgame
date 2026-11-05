@@ -140,6 +140,16 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
         message(FATAL_ERROR "The pinned Open-Golf source did not define the expected 'golf' target.")
     endif()
 
+    # Give remote players the same course BVH/contact solver as the local ball.
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOPENGOLF_DIR=${OPENGOLF_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/patch-opengolf-multiball-physics.cmake"
+        RESULT_VARIABLE _opengolf_multiball_physics_patch_result)
+    if(NOT _opengolf_multiball_physics_patch_result EQUAL 0)
+        message(FATAL_ERROR "Could not safely patch the shared per-ball physics entry point.")
+    endif()
+
     # Replace only the upstream platform entry point. Renderer, UI, course,
     # physics, data and audio source remain from the pinned upstream project.
     get_target_property(_golf_sources golf SOURCES)
