@@ -160,6 +160,24 @@ static golf_mp_remote_slot *find_remote_slot(uint32_t id) {
     return free_slot;
 }
 
+static quat safe_remote_ball_orientation(const tg_net_player *player) {
+    quat orientation;
+    float length_squared;
+
+    if (!player) return QUAT(0, 0, 0, 1);
+    orientation = QUAT(player->ball_qx, player->ball_qy,
+        player->ball_qz, player->ball_qw);
+    length_squared = orientation.x * orientation.x +
+        orientation.y * orientation.y +
+        orientation.z * orientation.z +
+        orientation.w * orientation.w;
+    if (!isfinite(length_squared) || length_squared < 0.25f ||
+        length_squared > 4.0f) {
+        return QUAT(0, 0, 0, 1);
+    }
+    return quat_normalize(orientation);
+}
+
 static void update_remote_players(float dt, const tg_net_info *info) {
     size_t player_count = 0;
     size_t i;
@@ -204,7 +222,10 @@ static void update_remote_players(float dt, const tg_net_info *info) {
         snapshot_speed = vec3_length(snapshot_vel);
         if (!isfinite(snapshot_speed) || snapshot_speed > 60.0f ||
             !isfinite(snapshot_pos.x) || !isfinite(snapshot_pos.y) ||
-            !isfinite(snapshot_pos.z)) {
+            !isfinite(snapshot_pos.z) ||
+            fabsf(snapshot_pos.x) > 10000.0f ||
+            fabsf(snapshot_pos.y) > 10000.0f ||
+            fabsf(snapshot_pos.z) > 10000.0f) {
             continue;
         }
 
@@ -217,9 +238,7 @@ static void update_remote_players(float dt, const tg_net_info *info) {
             slot->physics_ball.draw_pos = snapshot_pos;
             slot->physics_ball.vel = snapshot_vel;
             slot->physics_ball.rot_vec = V3(0, 0, 0);
-            slot->physics_ball.orientation = QUAT(
-                incoming->ball_qx, incoming->ball_qy,
-                incoming->ball_qz, incoming->ball_qw);
+            slot->physics_ball.orientation = safe_remote_ball_orientation(incoming);
             slot->physics_ball.radius = golf_game_get()->ball.radius;
             slot->physics_ball.is_moving = (incoming->flags & 1u) != 0u;
             slot->physics_ball.is_in_hole = (incoming->flags & 2u) != 0u;
@@ -243,6 +262,8 @@ static void update_remote_players(float dt, const tg_net_info *info) {
             incoming->flags != slot->snapshot_flags;
 
         if (snapshot_changed) {
+            int hole_changed = slot->snapshot_valid &&
+                incoming->hole_index != slot->snapshot_hole_index;
             vec3 current_pos = slot->physics_ball.pos;
             vec3 error = vec3_sub(snapshot_pos, current_pos);
             correction_distance = vec3_length(error);
@@ -250,11 +271,12 @@ static void update_remote_players(float dt, const tg_net_info *info) {
             /* Reconcile small prediction drift gradually; snap on hole changes,
                finish-state changes or large corrections after packet loss. */
             if (!slot->snapshot_valid ||
-                incoming->hole_index != slot->snapshot_hole_index ||
+                hole_changed ||
                 ((incoming->flags ^ slot->snapshot_flags) & 2u) != 0u ||
                 correction_distance > 0.65f) {
                 slot->physics_ball.pos = snapshot_pos;
                 slot->physics_ball.draw_pos = snapshot_pos;
+                if (hole_changed) slot->physics_time_behind = 0.0f;
             }
             else {
                 slot->physics_ball.pos = vec3_add(current_pos,
@@ -262,9 +284,7 @@ static void update_remote_players(float dt, const tg_net_info *info) {
             }
 
             slot->physics_ball.vel = snapshot_vel;
-            slot->physics_ball.orientation = quat_normalize(QUAT(
-                incoming->ball_qx, incoming->ball_qy,
-                incoming->ball_qz, incoming->ball_qw));
+            slot->physics_ball.orientation = safe_remote_ball_orientation(incoming);
             slot->physics_ball.is_moving = (incoming->flags & 1u) != 0u;
             slot->physics_ball.is_in_hole = (incoming->flags & 2u) != 0u;
             slot->physics_ball.is_out_of_bounds = false;
@@ -291,10 +311,8 @@ static void update_remote_players(float dt, const tg_net_info *info) {
             int ticks = 0;
             slot->physics_time_behind += frame_dt;
             while (slot->physics_time_behind >= physics_step && ticks < 12) {
-                vec3 previous = slot->physics_ball.pos;
                 golf_game_simulate_ball(&slot->physics_ball, physics_step);
                 slot->physics_ball.draw_pos = slot->physics_ball.pos;
-                (void)previous;
                 slot->physics_time_behind -= physics_step;
                 ++ticks;
             }
@@ -321,6 +339,10 @@ static void update_remote_players(float dt, const tg_net_info *info) {
         slot->player.ball_qy = slot->physics_ball.orientation.y;
         slot->player.ball_qz = slot->physics_ball.orientation.z;
         slot->player.ball_qw = slot->physics_ball.orientation.w;
+        if (slot->physics_ball.is_moving) slot->player.flags |= 1u;
+        else slot->player.flags &= ~1u;
+        if (slot->physics_ball.is_in_hole) slot->player.flags |= 2u;
+        else slot->player.flags &= ~2u;
         slot->missing_time = 0.0f;
         slot->seen = 1;
     }
@@ -419,7 +441,32 @@ static void resolve_local_ball_collisions(void) {
         remote.inverse_mass = 1.0f;
 
         result = golf_ball_collision_resolve(&local, &remote, 0.62f, 0.80f);
-        if (result.collided) changed = 1;
+        if (result.collided) {
+            golf_mp_remote_slot *slot = find_remote_slot(player->id);
+            changed = 1;
+            if (slot) {
+                slot->physics_ball.pos = V3(remote.position[0],
+                    remote.position[1], remote.position[2]);
+                slot->physics_ball.draw_pos = slot->physics_ball.pos;
+                slot->physics_ball.vel = V3(remote.velocity[0],
+                    remote.velocity[1], remote.velocity[2]);
+                if (vec3_length(slot->physics_ball.vel) > 0.1f) {
+                    slot->physics_ball.is_moving = true;
+                    slot->physics_ball.time_going_slow = 0.0f;
+                }
+                slot->x = slot->physics_ball.pos.x;
+                slot->y = slot->physics_ball.pos.y;
+                slot->z = slot->physics_ball.pos.z;
+                slot->player.ball_x = slot->x;
+                slot->player.ball_y = slot->y;
+                slot->player.ball_z = slot->z;
+                slot->player.ball_vx = slot->physics_ball.vel.x;
+                slot->player.ball_vy = slot->physics_ball.vel.y;
+                slot->player.ball_vz = slot->physics_ball.vel.z;
+                slot->player.flags |= 1u;
+                mp_remote_players[i] = slot->player;
+            }
+        }
         if (result.impulse > largest_impulse) largest_impulse = result.impulse;
     }
 

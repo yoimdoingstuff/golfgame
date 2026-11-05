@@ -30,7 +30,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [x] Carry linear ball velocity and the current zero-based hole index through the Golfgame-to-MultiNet adapter; apply bounded prediction and reject stale-hole score snapshots.
 - [ ] Refactor the single Open-Golf golf_game_t ball into independent per-player simulation states.
 - [x] Add a standalone, tested sphere-to-sphere collision solver and a first-pass local response against fresh same-hole remote ball snapshots.
-- [x] Advance remote ball states through the same static and dynamic course BVHs using the engine's extracted per-ball physics tick.
+- [x] Advance remote ball states through the same static and dynamic course BVHs using the engine's extracted per-ball physics tick, and carry the local collision impulse into the remote prediction.
 - [ ] Replace peer-predicted ball contacts with a host-authoritative shared physics simulation and test divergence under latency.
 - [ ] Keep simultaneous putting. Do not add turn queues or a current-player turn system.
 - [x] Add a ready-up gate after a hole: host advances only after every connected player has holed out and selected Next Hole; solo play advances immediately.

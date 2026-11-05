@@ -131,7 +131,8 @@ static void _physics_tick(float dt) {
 }
 
 void golf_game_simulate_ball(golf_ball_state_t *ball, float dt) {
-    if (!ball || !golf || !golf->level || !isfinite(dt) ||
+    if (!ball || !golf || !golf->level ||
+        game.state == GOLF_GAME_STATE_PAUSED || !isfinite(dt) ||
         dt <= 0.0f || dt > 0.1f) {
         return;
     }
