@@ -14,8 +14,8 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -A x64
       - name: Build Windows game, networking demo and unit tests
-        run: cmake --build build --config Release --target golf tg_net_demo golf_scorecard_tests golf_ball_collision_tests
-      - name: Run scorecard and ball-collision unit tests
+        run: cmake --build build --config Release --target golf tg_net_demo golf_scorecard_tests golf_ball_collision_tests golf_spawn_layout_tests
+      - name: Run scorecard, ball-collision and spawn-layout unit tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Package Windows game
         shell: pwsh

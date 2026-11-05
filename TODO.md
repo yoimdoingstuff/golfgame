@@ -28,7 +28,8 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 - [x] Expose a bounded, reliable application-message queue through the Golfgame network adapter and test host/client messages in both directions.
 - [x] Carry linear ball velocity and the current zero-based hole index through the Golfgame-to-MultiNet adapter; apply bounded prediction and reject stale-hole score snapshots.
-- [ ] Refactor the single Open-Golf golf_game_t ball into independent per-player simulation states.
+- [ ] Refactor local input/camera state into independent per-player game contexts; remote balls already have separate physics states.
+- [x] Assign deterministic 4x4 tee slots from the shared room roster so up to 16 balls do not spawn overlapped.
 - [x] Add a standalone, tested sphere-to-sphere collision solver and a first-pass local response against fresh same-hole remote ball snapshots.
 - [x] Advance remote ball states through the same static and dynamic course BVHs using the engine's extracted per-ball physics tick, and carry the local collision impulse into the remote prediction.
 - [ ] Replace peer-predicted ball contacts with a host-authoritative shared physics simulation and test divergence under latency.

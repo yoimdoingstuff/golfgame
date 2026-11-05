@@ -9,6 +9,7 @@
 #include "integration/golf_multiplayer.h"
 #include "integration/golf_scorecard.h"
 #include "integration/golf_ball_collision.h"
+#include "integration/golf_spawn_layout.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -22,6 +23,7 @@ static int mp_next_hole_level = -1;
 static int mp_advance_sent;
 static int mp_final_score_sent;
 static int mp_final_results_ready;
+static int mp_spawn_offset_level = -1;
 static golf_scorecard mp_scorecard;
 static char mp_player_name[TG_NET_PLAYER_NAME] = "Player";
 static char mp_room_name[TG_NET_ROOM_NAME] = "Golfgame Room";
@@ -484,6 +486,84 @@ static void resolve_local_ball_collisions(void) {
 }
 
 
+static void apply_local_player_tee_offset(const tg_net_info *info) {
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+    const tg_net_player *players;
+    size_t player_count = 0u;
+    size_t slot_index = TG_NET_MAX_PLAYERS;
+    size_t i;
+    golf_spawn_layout_offset offset;
+    vec3 forward;
+    vec3 right;
+    vec3 spawn_position;
+
+    if (!info || !info->match_started || info->local_player_id == 0u ||
+        golf->state != GOLF_STATE_IN_GAME ||
+        golf->level_num < 0 ||
+        golf->level_num >= (int)GOLF_SCORECARD_HOLES ||
+        mp_spawn_offset_level == golf->level_num ||
+        game->state == GOLF_GAME_STATE_MAIN_MENU ||
+        game->state == GOLF_GAME_STATE_PAUSED) {
+        return;
+    }
+
+    players = tg_net_get_players(&player_count);
+    if (!players || player_count == 0u ||
+        player_count > TG_NET_MAX_PLAYERS) {
+        return;
+    }
+
+    /* All clients receive the same host-ordered roster, so this slot is
+       stable even when a reconnect receives a player ID greater than 16. */
+    for (i = 0; i < player_count; ++i) {
+        if (players[i].id == info->local_player_id) {
+            slot_index = i;
+            break;
+        }
+    }
+    if (slot_index >= GOLF_SPAWN_LAYOUT_MAX_PLAYERS ||
+        !golf_spawn_layout_get_offset((unsigned)slot_index,
+            game->ball.radius, 0.025f, &offset)) {
+        return;
+    }
+
+    forward = vec3_sub(game->hole_pos, game->ball_start_pos);
+    forward.y = 0.0f;
+    if (vec3_length(forward) < 0.001f) {
+        forward = V3(0, 0, 1);
+    }
+    else {
+        forward = vec3_normalize(forward);
+    }
+
+    right = vec3_normalize(vec3_cross(V3(0, 1, 0), forward));
+    if (vec3_length(right) < 0.001f) right = V3(1, 0, 0);
+    spawn_position = vec3_add(game->ball_start_pos,
+        vec3_add(vec3_scale(right, offset.right),
+                 vec3_scale(forward, offset.forward)));
+
+    game->ball_start_pos = spawn_position;
+    game->ball.start_pos = spawn_position;
+    game->ball.pos = spawn_position;
+    game->ball.draw_pos = spawn_position;
+    game->ball.vel = V3(0, 0, 0);
+    game->ball.rot_vec = V3(0, 0, 0);
+    game->ball.orientation = QUAT(0, 0, 0, 1);
+    game->ball.rot_vel = 0.0f;
+    game->ball.is_moving = false;
+    game->ball.is_in_hole = false;
+    game->ball.is_in_water = false;
+    game->ball.is_out_of_bounds = false;
+    game->ball.time_going_slow = 0.0f;
+    game->ball.time_since_water_ripple = 0.0f;
+    game->ball.time_out_of_water = 1.0f;
+    game->ball.time_out_of_bounds = -1.0f;
+    game->ball.time_since_impact_sound = 1.0f;
+
+    mp_spawn_offset_level = golf->level_num;
+}
+
 static void publish_local_ball(const tg_net_info *info) {
     golf_t *golf = golf_get();
     golf_game_t *game = golf_game_get();
@@ -551,6 +631,7 @@ int golf_mp_start_match(void) {
     mp_advance_sent = 0;
     mp_final_score_sent = 0;
     mp_final_results_ready = 0;
+    mp_spawn_offset_level = -1;
     clear_match_scorecard();
     return tg_net_start_match();
 }
@@ -594,6 +675,7 @@ void golf_mp_leave(void) {
         mp_advance_sent = 0;
         mp_final_score_sent = 0;
         mp_final_results_ready = 0;
+        mp_spawn_offset_level = -1;
         clear_match_scorecard();
     }
 }
@@ -642,6 +724,7 @@ static void start_rematch_local(void) {
     mp_advance_sent = 0;
     mp_final_score_sent = 0;
     mp_final_results_ready = 0;
+    mp_spawn_offset_level = -1;
     clear_match_scorecard();
     golf_start_level(0);
 }
@@ -1008,6 +1091,8 @@ void golf_mp_update(float dt) {
 
     tg_net_update(dt);
     tg_net_get_info(&info);
+    if (!info.match_started) mp_spawn_offset_level = -1;
+    apply_local_player_tee_offset(&info);
     update_remote_players(dt, &info);
     resolve_local_ball_collisions();
     publish_local_ball(&info);
