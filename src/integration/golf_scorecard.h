@@ -24,6 +24,9 @@ typedef struct golf_scorecard {
 void golf_scorecard_reset(golf_scorecard *scorecard);
 int golf_scorecard_record(golf_scorecard *scorecard, uint32_t player_id,
                           unsigned hole_index, unsigned strokes);
+/* Store a validated host-relayed result, replacing any provisional snapshot row. */
+int golf_scorecard_set(golf_scorecard *scorecard, uint32_t player_id,
+                       unsigned hole_index, unsigned strokes);
 int golf_scorecard_get(const golf_scorecard *scorecard, uint32_t player_id,
                        unsigned hole_index, uint16_t *out_strokes);
 unsigned golf_scorecard_holes_completed(const golf_scorecard *scorecard,

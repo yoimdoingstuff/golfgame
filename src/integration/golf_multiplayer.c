@@ -650,7 +650,7 @@ static int apply_hole_result_message(const uint8_t *payload, size_t payload_size
     for (i = 0; i < count; ++i) {
         const uint8_t *record = payload + GOLF_MP_CONTROL_HEADER_BYTES +
             (size_t)i * GOLF_MP_HOLE_RECORD_BYTES;
-        (void)golf_scorecard_record(&mp_scorecard, read_u32_le(record),
+        (void)golf_scorecard_set(&mp_scorecard, read_u32_le(record),
             hole_index, read_u16_le(record + 4u));
     }
     return 1;

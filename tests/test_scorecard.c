@@ -32,6 +32,20 @@ int main(void) {
     assert(golf_scorecard_get(&card, 1u, 1u, &strokes));
     assert(strokes == 4u);
 
+    /* A host-relayed result may correct a provisional peer-snapshot value. */
+    assert(golf_scorecard_set(&card, 1u, 1u, 6u));
+    assert(golf_scorecard_get(&card, 1u, 1u, &strokes));
+    assert(strokes == 6u);
+    assert(golf_scorecard_total(&card, 1u) == 11u);
+    assert(golf_scorecard_holes_completed(&card, 1u) == 3u);
+    assert(!golf_scorecard_set(&card, 0u, 1u, 3u));
+    assert(!golf_scorecard_set(&card, 1u, 18u, 3u));
+    assert(!golf_scorecard_set(&card, 1u, 3u, 0u));
+    assert(!golf_scorecard_set(&card, 1u, 3u, 1000u));
+    assert(!golf_scorecard_set(NULL, 1u, 1u, 3u));
+    assert(golf_scorecard_get(&card, 1u, 1u, &strokes));
+    assert(strokes == 6u);
+
     assert(!golf_scorecard_record(&card, 0u, 0u, 3u));
     assert(!golf_scorecard_record(&card, 1u, 18u, 3u));
     assert(!golf_scorecard_record(&card, 1u, 4u, 0u));
@@ -62,6 +76,6 @@ int main(void) {
 
     golf_scorecard_reset(&card);
     assert(golf_scorecard_total(&card, UINT32_C(0x10001)) == 0u);
-    puts("PASS: scorecard validates input, maps monotonic player IDs, records once and totals 18 holes");
+    puts("PASS: scorecard validates input, records provisional rows once, applies host corrections and totals 18 holes");
     return 0;
 }

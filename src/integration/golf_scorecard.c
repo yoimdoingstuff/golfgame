@@ -47,6 +47,27 @@ int golf_scorecard_record(golf_scorecard *scorecard, uint32_t player_id,
     return 1;
 }
 
+int golf_scorecard_set(golf_scorecard *scorecard, uint32_t player_id,
+                       unsigned hole_index, unsigned strokes) {
+    uint32_t bit;
+    int slot;
+
+    if (!scorecard || player_id == 0u ||
+        hole_index >= GOLF_SCORECARD_HOLES ||
+        strokes == 0u || strokes > GOLF_SCORECARD_MAX_STROKES) {
+        return 0;
+    }
+
+    slot = find_player_slot(scorecard, player_id, 1);
+    if (slot < 0) return 0;
+    bit = UINT32_C(1) << hole_index;
+
+    /* The host-relayed result replaces a snapshot-derived provisional value. */
+    scorecard->strokes[slot][hole_index] = (uint16_t)strokes;
+    scorecard->recorded_holes[slot] |= bit;
+    return 1;
+}
+
 int golf_scorecard_get(const golf_scorecard *scorecard, uint32_t player_id,
                        unsigned hole_index, uint16_t *out_strokes) {
     uint32_t bit;
