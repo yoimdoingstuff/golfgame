@@ -37,7 +37,8 @@ static void print_players(void) {
     if (info.ping_available) printf("RTT %.1f ms | ", (double)info.ping_ms);
     else if (info.ping_pending) printf("RTT measuring | ");
     for(i=0;i<count && i<TG_NET_MAX_PLAYERS;i++)
-        printf("%s%s(x=%.2f,vx=%.2f,strokes=%u)",i?", ":"",players[i].name,
+        printf("%s%s(hole=%u,x=%.2f,vx=%.2f,strokes=%u)",i?", ":"",players[i].name,
+            (unsigned)players[i].hole_index,
             (double)players[i].ball_x,(double)players[i].ball_vx,
             (unsigned)players[i].strokes);
     printf("                    "); fflush(stdout);
@@ -105,6 +106,7 @@ int main(int argc,char **argv) {
             memset(&local_player, 0, sizeof(local_player));
             local_player.ball_x = info.role == TG_NET_ROLE_HOST ? 1.25f : 4.50f;
             local_player.ball_vx = info.role == TG_NET_ROLE_HOST ? 0.75f : -1.25f;
+            local_player.hole_index = info.role == TG_NET_ROLE_HOST ? 2u : 6u;
             local_player.ball_qw = 1.0f;
             local_player.ball_colour_rgba = TG_NET_DEFAULT_BALL_COLOUR_RGBA;
             local_player.strokes = 7u;

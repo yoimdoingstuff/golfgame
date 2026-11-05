@@ -19,6 +19,7 @@ static float mp_ping_timer;
 static int mp_local_ready;
 static int mp_next_hole_level = -1;
 static int mp_advance_sent;
+static int mp_final_score_sent;
 static golf_scorecard mp_scorecard;
 static char mp_player_name[TG_NET_PLAYER_NAME] = "Player";
 static char mp_room_name[TG_NET_ROOM_NAME] = "Golfgame Room";
@@ -38,10 +39,13 @@ static tg_net_player mp_remote_players[TG_NET_MAX_PLAYERS];
 static size_t mp_remote_count;
 
 #define GOLF_MP_CONTROL_CHANNEL 0x4747u
-#define GOLF_MP_CONTROL_BYTES 8u
+#define GOLF_MP_CONTROL_HEADER_BYTES 8u
+#define GOLF_MP_HOLE_RECORD_BYTES 6u
+#define GOLF_MP_CONTROL_MAX_BYTES (GOLF_MP_CONTROL_HEADER_BYTES + TG_NET_MAX_PLAYERS * GOLF_MP_HOLE_RECORD_BYTES)
 #define GOLF_MP_FLAG_READY_NEXT 8u
 #define GOLF_MP_HOST_PLAYER_ID 1u
 #define GOLF_MP_CONTROL_ADVANCE_HOLE 1u
+#define GOLF_MP_CONTROL_SCORE_HOLE 2u
 
 static const uint8_t mp_hole_par[GOLF_SCORECARD_HOLES] = {
     2, 3, 3, 4, 3, 4, 3, 4, 3, 4, 4, 3, 4, 4, 4, 4, 4, 5
@@ -80,10 +84,11 @@ static unsigned match_par_through_hole(int hole_index) {
 }
 
 static uint32_t player_match_total(uint32_t player_id, int hole_index,
-                                  unsigned current_strokes) {
+                                  unsigned current_strokes, int on_current_hole) {
     uint32_t total = golf_scorecard_total(&mp_scorecard, player_id);
     uint16_t recorded_strokes;
-    if (hole_index >= 0 && hole_index < (int)GOLF_SCORECARD_HOLES &&
+    if (on_current_hole && hole_index >= 0 &&
+        hole_index < (int)GOLF_SCORECARD_HOLES &&
         !golf_scorecard_get(&mp_scorecard, player_id,
                             (unsigned)hole_index, &recorded_strokes)) {
         total += current_strokes;
@@ -110,7 +115,8 @@ static void record_finished_player_scores(const tg_net_info *info) {
     for (i = 0; i < count; ++i) {
         const tg_net_player *player = &players[i];
         if (player->id == 0u || player->id == info->local_player_id) continue;
-        if ((player->flags & 4u) == 0u || (player->flags & 2u) == 0u) continue;
+        if (player->hole_index != (uint16_t)hole_index ||
+            (player->flags & 4u) == 0u || (player->flags & 2u) == 0u) continue;
         (void)golf_scorecard_record(&mp_scorecard, player->id,
                                     (unsigned)hole_index, player->strokes);
     }
@@ -258,6 +264,7 @@ static void publish_local_ball(const tg_net_info *info) {
         player.ball_vy = game->ball.vel.y;
         player.ball_vz = game->ball.vel.z;
     }
+    player.hole_index = (uint16_t)golf->level_num;
     player.ball_qx = game->ball.orientation.x;
     player.ball_qy = game->ball.orientation.y;
     player.ball_qz = game->ball.orientation.z;
@@ -300,6 +307,7 @@ int golf_mp_start_match(void) {
     mp_local_ready = 0;
     mp_next_hole_level = -1;
     mp_advance_sent = 0;
+    mp_final_score_sent = 0;
     clear_match_scorecard();
     return tg_net_start_match();
 }
@@ -341,6 +349,7 @@ void golf_mp_leave(void) {
         mp_local_ready = 0;
         mp_next_hole_level = -1;
         mp_advance_sent = 0;
+        mp_final_score_sent = 0;
         clear_match_scorecard();
     }
 }
@@ -362,7 +371,130 @@ static void start_next_hole_local(int next_level) {
     mp_local_ready = 0;
     mp_next_hole_level = -1;
     mp_advance_sent = 0;
+    mp_final_score_sent = 0;
     golf_start_level(next_level);
+}
+
+static void write_u16_le(uint8_t *out, uint16_t value) {
+    out[0] = (uint8_t)(value & 0xFFu);
+    out[1] = (uint8_t)((value >> 8) & 0xFFu);
+}
+
+static void write_u32_le(uint8_t *out, uint32_t value) {
+    out[0] = (uint8_t)(value & 0xFFu);
+    out[1] = (uint8_t)((value >> 8) & 0xFFu);
+    out[2] = (uint8_t)((value >> 16) & 0xFFu);
+    out[3] = (uint8_t)((value >> 24) & 0xFFu);
+}
+
+static uint16_t read_u16_le(const uint8_t *in) {
+    return (uint16_t)((uint16_t)in[0] | ((uint16_t)in[1] << 8));
+}
+
+static uint32_t read_u32_le(const uint8_t *in) {
+    return (uint32_t)in[0] |
+        ((uint32_t)in[1] << 8) |
+        ((uint32_t)in[2] << 16) |
+        ((uint32_t)in[3] << 24);
+}
+
+static unsigned local_hole_strokes(const golf_game_t *game) {
+    if (!game || game->stroke_count < 1) return 1u;
+    if (game->stroke_count > (int)GOLF_SCORECARD_MAX_STROKES)
+        return GOLF_SCORECARD_MAX_STROKES;
+    return (unsigned)game->stroke_count;
+}
+
+/* Host result envelopes use a fixed-endian header and one record per active
+   player: 32-bit ID plus 16-bit strokes. */
+static int build_hole_result_message(const tg_net_info *info, int hole_index,
+        uint8_t command, uint8_t payload[GOLF_MP_CONTROL_MAX_BYTES],
+        size_t *out_size) {
+    const tg_net_player *players;
+    size_t count = 0u, i, record_count = 0u;
+    golf_game_t *game = golf_game_get();
+
+    if (!info || !payload || !out_size || hole_index < 0 ||
+        hole_index >= (int)GOLF_SCORECARD_HOLES) return 0;
+
+    players = tg_net_get_players(&count);
+    if (count == 0u || count > TG_NET_MAX_PLAYERS ||
+        count != info->player_count) return 0;
+
+    memset(payload, 0, GOLF_MP_CONTROL_MAX_BYTES);
+    memcpy(payload, "GGH1", 4u);
+    payload[4] = 1u;
+    payload[5] = command;
+    payload[6] = (uint8_t)hole_index;
+
+    for (i = 0; i < count; ++i) {
+        const tg_net_player *player = &players[i];
+        unsigned strokes;
+        uint8_t *record;
+
+        if (player->id == 0u || player->hole_index != (uint16_t)hole_index ||
+            (player->flags & 4u) == 0u || (player->flags & 2u) == 0u) {
+            return 0;
+        }
+        if (command == GOLF_MP_CONTROL_ADVANCE_HOLE &&
+            (player->flags & GOLF_MP_FLAG_READY_NEXT) == 0u) {
+            return 0;
+        }
+
+        strokes = player->id == info->local_player_id ?
+            local_hole_strokes(game) : (unsigned)player->strokes;
+        if (strokes == 0u || strokes > GOLF_SCORECARD_MAX_STROKES) return 0;
+
+        record = payload + GOLF_MP_CONTROL_HEADER_BYTES +
+            record_count * GOLF_MP_HOLE_RECORD_BYTES;
+        write_u32_le(record, player->id);
+        write_u16_le(record + 4u, (uint16_t)strokes);
+        ++record_count;
+    }
+
+    if (record_count == 0u || record_count > TG_NET_MAX_PLAYERS) return 0;
+    payload[7] = (uint8_t)record_count;
+    *out_size = GOLF_MP_CONTROL_HEADER_BYTES +
+        record_count * GOLF_MP_HOLE_RECORD_BYTES;
+    return 1;
+}
+
+static int apply_hole_result_message(const uint8_t *payload, size_t payload_size) {
+    unsigned count, i;
+    unsigned hole_index;
+
+    if (!payload || payload_size < GOLF_MP_CONTROL_HEADER_BYTES ||
+        memcmp(payload, "GGH1", 4u) != 0 || payload[4] != 1u) return 0;
+
+    hole_index = payload[6];
+    count = payload[7];
+    if (hole_index >= GOLF_SCORECARD_HOLES || count == 0u ||
+        count > TG_NET_MAX_PLAYERS ||
+        payload_size != GOLF_MP_CONTROL_HEADER_BYTES +
+            (size_t)count * GOLF_MP_HOLE_RECORD_BYTES) return 0;
+
+    for (i = 0; i < count; ++i) {
+        const uint8_t *record = payload + GOLF_MP_CONTROL_HEADER_BYTES +
+            (size_t)i * GOLF_MP_HOLE_RECORD_BYTES;
+        uint32_t player_id = read_u32_le(record);
+        uint16_t strokes = read_u16_le(record + 4u);
+        unsigned previous;
+        if (player_id == 0u || strokes == 0u ||
+            strokes > GOLF_SCORECARD_MAX_STROKES) return 0;
+        for (previous = 0; previous < i; ++previous) {
+            const uint8_t *other = payload + GOLF_MP_CONTROL_HEADER_BYTES +
+                (size_t)previous * GOLF_MP_HOLE_RECORD_BYTES;
+            if (read_u32_le(other) == player_id) return 0;
+        }
+    }
+
+    for (i = 0; i < count; ++i) {
+        const uint8_t *record = payload + GOLF_MP_CONTROL_HEADER_BYTES +
+            (size_t)i * GOLF_MP_HOLE_RECORD_BYTES;
+        (void)golf_scorecard_record(&mp_scorecard, read_u32_le(record),
+            hole_index, read_u16_le(record + 4u));
+    }
+    return 1;
 }
 
 static void process_match_control_messages(const tg_net_info *info) {
@@ -371,65 +503,85 @@ static void process_match_control_messages(const tg_net_info *info) {
     golf_game_t *game = golf_game_get();
 
     while (tg_net_poll_message(&message)) {
-        int next_level;
+        uint8_t command, hole_index;
+        int local_finished;
         if (message.channel != GOLF_MP_CONTROL_CHANNEL ||
-            message.data_size != GOLF_MP_CONTROL_BYTES ||
+            message.data_size < GOLF_MP_CONTROL_HEADER_BYTES ||
             memcmp(message.data, "GGH1", 4u) != 0 ||
-            message.data[4] != 1u ||
-            message.data[5] != GOLF_MP_CONTROL_ADVANCE_HOLE) {
-            continue;
-        }
-        /* MultiNet assigns the host player ID 1 at room creation. Clients
-           cannot advance themselves or accept another client as the host. */
+            message.data[4] != 1u) continue;
+
+        /* Only host-originated envelopes may update shared scores or advance. */
         if (info->role != TG_NET_ROLE_CLIENT ||
             message.sender_id != GOLF_MP_HOST_PLAYER_ID) continue;
 
-        next_level = (int)message.data[6];
-        if (message.data[7] != 0u ||
-            next_level < 0 || next_level >= 18 ||
+        command = message.data[5];
+        hole_index = message.data[6];
+        if (hole_index != (uint8_t)golf->level_num ||
+            hole_index >= GOLF_SCORECARD_HOLES) continue;
+
+        if (command == GOLF_MP_CONTROL_SCORE_HOLE) {
+            local_finished = game->ball.is_in_hole ||
+                game->state == GOLF_GAME_STATE_CELEBRATION ||
+                game->state == GOLF_GAME_STATE_FINISHED;
+            if (golf->state != GOLF_STATE_IN_GAME || !local_finished) continue;
+            (void)apply_hole_result_message(message.data, message.data_size);
+            continue;
+        }
+
+        if (command != GOLF_MP_CONTROL_ADVANCE_HOLE ||
             golf->state != GOLF_STATE_IN_GAME ||
             game->state != GOLF_GAME_STATE_FINISHED ||
             !mp_local_ready ||
-            next_level != golf->level_num + 1) {
+            (int)hole_index + 1 != golf->level_num + 1 ||
+            (int)hole_index + 1 >= (int)GOLF_SCORECARD_HOLES) {
             continue;
         }
-        start_next_hole_local(next_level);
+        if (!apply_hole_result_message(message.data, message.data_size)) continue;
+        start_next_hole_local((int)hole_index + 1);
     }
 }
 
 static void host_try_advance_hole(const tg_net_info *info) {
-    const tg_net_player *players;
-    size_t count = 0, i;
-    uint8_t payload[GOLF_MP_CONTROL_BYTES] = {
-        'G', 'G', 'H', '1', 1u, GOLF_MP_CONTROL_ADVANCE_HOLE, 0u, 0u
-    };
-    int found_remote = 0;
+    uint8_t payload[GOLF_MP_CONTROL_MAX_BYTES];
+    size_t payload_size = 0u;
+    int current_hole;
 
     if (!info || info->role != TG_NET_ROLE_HOST ||
         !mp_local_ready || mp_advance_sent ||
-        mp_next_hole_level < 0 || mp_next_hole_level >= 18) return;
+        mp_next_hole_level < 1 ||
+        mp_next_hole_level >= (int)GOLF_SCORECARD_HOLES) return;
 
-    players = tg_net_get_players(&count);
-    for (i = 0; i < count && i < TG_NET_MAX_PLAYERS; ++i) {
-        const tg_net_player *player = &players[i];
-        if (player->id == 0 || player->id == info->local_player_id) continue;
-        found_remote = 1;
-        if ((player->flags & 4u) == 0u ||
-            (player->flags & 2u) == 0u ||
-            (player->flags & GOLF_MP_FLAG_READY_NEXT) == 0u) {
-            return;
-        }
-    }
+    current_hole = mp_next_hole_level - 1;
+    if (!build_hole_result_message(info, current_hole,
+            GOLF_MP_CONTROL_ADVANCE_HOLE, payload, &payload_size)) return;
 
-    payload[6] = (uint8_t)mp_next_hole_level;
-    if (found_remote && !tg_net_send_reliable_message(0,
-            GOLF_MP_CONTROL_CHANNEL, payload, sizeof(payload))) {
-        return;
-    }
+    if (info->player_count > 1u && !tg_net_send_reliable_message(0,
+            GOLF_MP_CONTROL_CHANNEL, payload, payload_size)) return;
 
-    /* No remote peers means a solo host: keep the single-player flow instant. */
+    /* The reliable advance includes exact hole scores before any ball resets. */
     mp_advance_sent = 1;
-    start_next_hole_local((int)payload[6]);
+    start_next_hole_local(mp_next_hole_level);
+}
+
+static void host_try_publish_final_hole(const tg_net_info *info) {
+    uint8_t payload[GOLF_MP_CONTROL_MAX_BYTES];
+    size_t payload_size = 0u;
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+
+    if (!info || info->role != TG_NET_ROLE_HOST || !info->match_started ||
+        mp_final_score_sent || golf->state != GOLF_STATE_IN_GAME ||
+        golf->level_num != (int)GOLF_SCORECARD_HOLES - 1 ||
+        !(game->ball.is_in_hole ||
+          game->state == GOLF_GAME_STATE_CELEBRATION ||
+          game->state == GOLF_GAME_STATE_FINISHED)) return;
+
+    if (!build_hole_result_message(info, golf->level_num,
+            GOLF_MP_CONTROL_SCORE_HOLE, payload, &payload_size)) return;
+
+    if (info->player_count > 1u && !tg_net_send_reliable_message(0,
+            GOLF_MP_CONTROL_CHANNEL, payload, payload_size)) return;
+    mp_final_score_sent = 1;
 }
 
 static int golf_mp_request_ping(void) {
@@ -537,6 +689,7 @@ void golf_mp_update(float dt) {
     update_remote_players(dt, &info);
     record_finished_player_scores(&info);
     process_match_control_messages(&info);
+    host_try_publish_final_hole(&info);
     host_try_advance_hole(&info);
 
     mp_ping_timer += fmaxf(dt, 0.0f);
@@ -729,7 +882,7 @@ void golf_mp_ui_update(void) {
                 info.status == TG_NET_STATUS_OFFLINE ? "PRACTICE" : status_name(info.status));
             if (info.match_started && info.local_player_id > 0u) {
                 unsigned total = player_match_total(info.local_player_id,
-                    hole - 1, (unsigned)(game->stroke_count > 0 ? game->stroke_count : 0));
+                    hole - 1, (unsigned)(game->stroke_count > 0 ? game->stroke_count : 0), 1);
                 igText("TOTAL  %u  /  PAR  %u", total, match_par_through_hole(hole - 1));
             }
             if (info.ping_available) igText("PING  %.1f ms", info.ping_ms);
@@ -755,13 +908,20 @@ void golf_mp_ui_update(void) {
                 const char *state = (player->flags & GOLF_MP_FLAG_READY_NEXT) ? "NEXT READY" :
                     ((player->flags & 2u) ? "HOLED" :
                     ((player->flags & 1u) ? "PUTTING" : "READY"));
+                int on_current_hole = player->hole_index == (uint16_t)golf->level_num;
+                int par_hole = on_current_hole ? golf->level_num : golf->level_num - 1;
                 uint32_t total = info.match_started ? player_match_total(
-                    player->id, golf->level_num, player->strokes) : player->strokes;
+                    player->id, golf->level_num, player->strokes, on_current_hole) : player->strokes;
                 int32_t relative_par = (int32_t)total -
-                    (int32_t)match_par_through_hole(golf->level_num);
-                igBulletText("%s  /  %u  /  %u (%+d)  %s", player->name,
-                    (unsigned)player->strokes, (unsigned)total,
-                    (int)relative_par, state);
+                    (int32_t)match_par_through_hole(par_hole);
+                if (on_current_hole) {
+                    igBulletText("%s  /  %u  /  %u (%+d)  %s", player->name,
+                        (unsigned)player->strokes, (unsigned)total,
+                        (int)relative_par, state);
+                } else {
+                    igBulletText("%s  /  --  /  %u (%+d)  LOADING", player->name,
+                        (unsigned)total, (int)relative_par);
+                }
             }
             if (info.last_error[0]) {
                 igSeparator();

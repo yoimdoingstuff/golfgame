@@ -86,6 +86,7 @@ static void map_player(const mn_player *source, tg_net_player *destination) {
     destination->ball_colour_rgba = source->colour_rgba;
     destination->hat_id = source->appearance[0];
     destination->trail_id = source->appearance[1];
+    destination->hole_index = source->appearance[2];
     score = source->score;
     if (score < 0) score = 0;
     if (score > 65535) score = 65535;
@@ -112,6 +113,7 @@ static void map_local_player(const tg_net_player *source, mn_player *destination
         source->ball_colour_rgba : TG_NET_DEFAULT_BALL_COLOUR_RGBA;
     destination->appearance[0] = source->hat_id;
     destination->appearance[1] = source->trail_id;
+    destination->appearance[2] = source->hole_index;
     destination->score = (int32_t)source->strokes;
     destination->flags = source->flags;
 }

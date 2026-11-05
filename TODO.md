@@ -27,7 +27,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 ## Multiplayer gameplay
 
 - [x] Expose a bounded, reliable application-message queue through the Golfgame network adapter and test host/client messages in both directions.
-- [x] Carry linear ball velocity through the Golfgame-to-MultiNet adapter and apply a short, displacement-capped prediction before smoothing remote snapshots.
+- [x] Carry linear ball velocity and the current zero-based hole index through the Golfgame-to-MultiNet adapter; apply bounded prediction and reject stale-hole score snapshots.
 - [ ] Refactor the single Open-Golf golf_game_t ball into independent per-player simulation states.
 - [ ] Simulate every active ball against the same course and moving obstacles; remote balls must collide and interact, not just render snapshots.
 - [ ] Keep simultaneous putting. Do not add turn queues or a current-player turn system.
@@ -36,7 +36,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [ ] Add ball hats/accessories and trails; keep all cosmetics visual-only.
 - [ ] Make the host validate shots, strokes, hole completion and final match results. (The current ready-up gate coordinates client-reported finished/ready flags; it is not host-authoritative anti-cheat validation.)
 - [ ] Preserve completed balls at the cup while other players finish.
-- [x] Track a per-player 18-hole scorecard across hole changes, with cumulative strokes and par-relative totals in the live scoreboard.
+- [x] Track a per-player 18-hole scorecard across hole changes, with cumulative strokes and par-relative totals in the live scoreboard; the host reliably publishes each completed hole's score rows before progression and sends final-hole results.
 - [ ] Add a final winner/results screen and rematch flow; scorecard data currently lives in memory for the active match.
 - [ ] Test 2, 4, 8 and 16 players, packet loss, disconnects and host shutdown.
 
