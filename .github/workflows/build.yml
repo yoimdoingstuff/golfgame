@@ -13,9 +13,9 @@ jobs:
           submodules: recursive
       - name: Configure
         run: cmake -S . -B build -A x64
-      - name: Build Windows game, networking demo and scorecard tests
-        run: cmake --build build --config Release --target golf tg_net_demo golf_scorecard_tests
-      - name: Run scorecard unit tests
+      - name: Build Windows game, networking demo and unit tests
+        run: cmake --build build --config Release --target golf tg_net_demo golf_scorecard_tests golf_ball_collision_tests
+      - name: Run scorecard and ball-collision unit tests
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Package Windows game
         shell: pwsh
@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Configure networking-only build
         run: cmake -S . -B build -DGOLFGAME_BUILD_OPEN_GOLF=OFF -DCMAKE_BUILD_TYPE=Release
-      - name: Build networking demo and scorecard tests
+      - name: Build networking demo and unit tests
         run: cmake --build build --config Release --target tg_net_demo golf_scorecard_tests
       - name: Run scorecard unit tests
         run: ctest --test-dir build --output-on-failure

@@ -8,6 +8,7 @@
 #include "golf/ui.h"
 #include "integration/golf_multiplayer.h"
 #include "integration/golf_scorecard.h"
+#include "integration/golf_ball_collision.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -241,6 +242,100 @@ static void update_remote_players(float dt, const tg_net_info *info) {
         }
     }
 }
+
+
+/* A remote snapshot must be recent before it can push the local physical ball.
+   Stale peers remain visible briefly, but are not treated as current collision
+   geometry after packet loss or a disconnect. */
+static int remote_ball_snapshot_is_fresh(uint32_t player_id) {
+    size_t i;
+    for (i = 0; i < TG_NET_MAX_PLAYERS; ++i) {
+        const golf_mp_remote_slot *slot = &mp_remote_slots[i];
+        if (slot->active && slot->id == player_id) {
+            return slot->seen || slot->missing_time <= 0.20f;
+        }
+    }
+    return 0;
+}
+
+/* First-pass contact bridge: solve the local ball against each fresh,
+   same-hole remote snapshot. Each peer independently solves its own local
+   side when it receives the corresponding snapshot. This improves contact
+   response without pretending remote balls have full course physics. */
+static void resolve_local_ball_collisions(void) {
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+    golf_ball_collision_body local;
+    vec3 original_position;
+    float largest_impulse = 0.0f;
+    int changed = 0;
+    size_t i;
+
+    if (golf->state != GOLF_STATE_IN_GAME ||
+        game->state == GOLF_GAME_STATE_MAIN_MENU ||
+        game->state == GOLF_GAME_STATE_PAUSED ||
+        game->ball.is_in_hole || game->ball.is_out_of_bounds ||
+        !isfinite(game->ball.radius) || game->ball.radius <= 0.0f) {
+        return;
+    }
+
+    original_position = game->ball.pos;
+    local.position[0] = game->ball.pos.x;
+    local.position[1] = game->ball.pos.y;
+    local.position[2] = game->ball.pos.z;
+    local.velocity[0] = game->ball.vel.x;
+    local.velocity[1] = game->ball.vel.y;
+    local.velocity[2] = game->ball.vel.z;
+    local.radius = game->ball.radius;
+    local.inverse_mass = 1.0f;
+
+    for (i = 0; i < mp_remote_count; ++i) {
+        const tg_net_player *player = &mp_remote_players[i];
+        golf_ball_collision_body remote;
+        golf_ball_collision_result result;
+
+        if (player->id == 0u ||
+            player->hole_index != (uint16_t)golf->level_num ||
+            (player->flags & 4u) == 0u ||
+            (player->flags & 2u) != 0u ||
+            !remote_ball_snapshot_is_fresh(player->id)) {
+            continue;
+        }
+
+        remote.position[0] = player->ball_x;
+        remote.position[1] = player->ball_y;
+        remote.position[2] = player->ball_z;
+        if ((player->flags & 1u) != 0u) {
+            remote.velocity[0] = player->ball_vx;
+            remote.velocity[1] = player->ball_vy;
+            remote.velocity[2] = player->ball_vz;
+        }
+        else {
+            remote.velocity[0] = 0.0f;
+            remote.velocity[1] = 0.0f;
+            remote.velocity[2] = 0.0f;
+        }
+        remote.radius = game->ball.radius;
+        remote.inverse_mass = 1.0f;
+
+        result = golf_ball_collision_resolve(&local, &remote, 0.62f, 0.80f);
+        if (result.collided) changed = 1;
+        if (result.impulse > largest_impulse) largest_impulse = result.impulse;
+    }
+
+    if (!changed) return;
+
+    game->ball.pos = V3(local.position[0], local.position[1], local.position[2]);
+    game->ball.draw_pos = vec3_add(game->ball.draw_pos,
+        vec3_sub(game->ball.pos, original_position));
+    game->ball.vel = V3(local.velocity[0], local.velocity[1], local.velocity[2]);
+
+    if (largest_impulse > 0.001f && vec3_length(game->ball.vel) > 0.1f) {
+        game->ball.is_moving = true;
+        game->ball.time_going_slow = 0.0f;
+    }
+}
+
 
 static void publish_local_ball(const tg_net_info *info) {
     golf_t *golf = golf_get();
@@ -685,8 +780,9 @@ void golf_mp_update(float dt) {
 
     tg_net_update(dt);
     tg_net_get_info(&info);
-    publish_local_ball(&info);
     update_remote_players(dt, &info);
+    resolve_local_ball_collisions();
+    publish_local_ball(&info);
     record_finished_player_scores(&info);
     process_match_control_messages(&info);
     host_try_publish_final_hole(&info);

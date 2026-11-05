@@ -6,11 +6,11 @@ An original, compact Windows multiplayer minigolf game inspired by the minigolf 
 
 - An original **Workshop** course pack containing 18 sequential holes. The holes use procedurally authored fairways, raised platform geometry, retaining rails, ramps, bumpers and moving spinner obstacles.
 - A Golfgame-owned **Play Workshop** entry point that starts the 18-hole progression directly. The original Open-Golf Play button, numbered sample-level selector and sample level files are not part of the packaged game.
-- A Golfgame-styled main menu and Workshop entry panel, custom teal multiplayer UI, hole-complete wording and in-game HUD for hole number, par, strokes and the current player list.
+- A Golfgame-styled main menu and Workshop entry panel, custom teal multiplayer UI, hole-complete wording and an in-game HUD with an 18-hole player scorecard, cumulative strokes and par-relative totals.
 - Third-person ball gameplay and course physics built on the pinned Open-Golf renderer/physics/level-loading foundation.
 - A 16-player LAN lobby powered by MultiNet 0.9.0, with automatic discovery fallbacks, host/find/join controls and a multiplayer diagnostics tab. MultiNet now also has bounded, transport-neutral framed streams, experimental Windows RFCOMM and direct TCP stream backends, but Golfgame still uses its UDP room transport; TCP and Bluetooth RFCOMM are not yet wired into game sessions.
 
-**Important multiplayer limitation:** the underlying gameplay simulation still has one physical ball per client. Remote balls are currently presentation snapshots, not independently simulated balls sharing the same collision world. The HUD is not yet a persistent 18-hole scorecard, and hats/trails/cosmetic unlocks are not implemented yet.
+**Important multiplayer limitation:** the engine still simulates one full course-physics ball per client. A first-pass, unit-tested sphere-contact resolver now applies a local impulse and separation correction against fresh remote-ball snapshots on the same hole, but remote balls are not independently integrated against the course or moving obstacles and the result is not host-authoritative. The 18-hole scorecard works during the active match but is in-memory only. Hats, trails and cosmetic unlocks are not implemented yet.
 
 ## Engine and licensing
 
@@ -60,7 +60,7 @@ CI compilation and Mesa captures are not a substitute for running the executable
 - Everyone may aim and putt simultaneously. There are no turns.
 - A player who holes out should remain at the cup while the others finish.
 - Hats and trails are visual-only cosmetics planned for later work.
-- Course progression and the future scorecard should span all 18 holes.
+- Course progression and the in-memory per-player scorecard span all 18 holes of the active match.
 
 ## Project documents
 
