@@ -15,6 +15,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(GOLFGAME_BUILD_OPEN_GOLF "Build the integrated Open-Golf game client" ON)
+include(CTest)
+
+add_library(golf_scorecard STATIC src/integration/golf_scorecard.c)
+target_include_directories(golf_scorecard PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/integration")
+
+if(BUILD_TESTING)
+    add_executable(golf_scorecard_tests tests/test_scorecard.c)
+    target_link_libraries(golf_scorecard_tests PRIVATE golf_scorecard)
+    add_test(NAME golf_scorecard_tests COMMAND golf_scorecard_tests)
+endif()
 
 # MultiNet is the reusable transport. Pin a known commit so Golfgame builds
 # are reproducible; a local checkout is available for offline development.
@@ -128,7 +138,7 @@ if(GOLFGAME_BUILD_OPEN_GOLF)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/integration/golf_multiplayer.c"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/integration/golf_remote_balls.c")
     target_include_directories(golf PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_link_libraries(golf PRIVATE tg_network)
+    target_link_libraries(golf PRIVATE tg_network golf_scorecard)
     set_target_properties(golf PROPERTIES OUTPUT_NAME "golfgame")
 
     # CMake only permits TARGET POST_BUILD declarations in the directory
@@ -151,7 +161,15 @@ endif()
 if(MSVC)
     target_compile_options(tg_network PRIVATE /W4)
     target_compile_options(tg_net_demo PRIVATE /W4)
+    target_compile_options(golf_scorecard PRIVATE /W4)
+    if(BUILD_TESTING)
+        target_compile_options(golf_scorecard_tests PRIVATE /W4)
+    endif()
 else()
     target_compile_options(tg_network PRIVATE -Wall -Wextra -Wpedantic)
     target_compile_options(tg_net_demo PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(golf_scorecard PRIVATE -Wall -Wextra -Wpedantic)
+    if(BUILD_TESTING)
+        target_compile_options(golf_scorecard_tests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 endif()

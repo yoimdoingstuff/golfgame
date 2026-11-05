@@ -7,6 +7,7 @@
 #include "golf/golf.h"
 #include "golf/ui.h"
 #include "integration/golf_multiplayer.h"
+#include "integration/golf_scorecard.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -18,6 +19,7 @@ static float mp_ping_timer;
 static int mp_local_ready;
 static int mp_next_hole_level = -1;
 static int mp_advance_sent;
+static golf_scorecard mp_scorecard;
 static char mp_player_name[TG_NET_PLAYER_NAME] = "Player";
 static char mp_room_name[TG_NET_ROOM_NAME] = "Golfgame Room";
 static char mp_direct_address[48] = "";
@@ -41,6 +43,10 @@ static size_t mp_remote_count;
 #define GOLF_MP_HOST_PLAYER_ID 1u
 #define GOLF_MP_CONTROL_ADVANCE_HOLE 1u
 
+static const uint8_t mp_hole_par[GOLF_SCORECARD_HOLES] = {
+    2, 3, 3, 4, 3, 4, 3, 4, 3, 4, 4, 3, 4, 4, 4, 4, 4, 5
+};
+
 static const uint32_t mp_player_colors[TG_NET_MAX_PLAYERS] = {
     0xFFFFFFFFu, 0xFF5C5CFFu, 0x4D9DE0FFu, 0xF2C14EFFu,
     0x7DCE82FFu, 0xB388EBFFu, 0xFF8C42FFu, 0x50C5B7FFu,
@@ -56,6 +62,67 @@ static const char *status_name(tg_net_status status) {
         case TG_NET_STATUS_CONNECTED: return "Connected";
         case TG_NET_STATUS_OFFLINE:
         default: return "Offline";
+    }
+}
+
+static void clear_match_scorecard(void) {
+    golf_scorecard_reset(&mp_scorecard);
+}
+
+static unsigned match_par_through_hole(int hole_index) {
+    unsigned par = 0u;
+    int i;
+    if (hole_index < 0) return 0u;
+    if (hole_index >= (int)GOLF_SCORECARD_HOLES)
+        hole_index = (int)GOLF_SCORECARD_HOLES - 1;
+    for (i = 0; i <= hole_index; ++i) par += mp_hole_par[i];
+    return par;
+}
+
+static uint32_t player_match_total(uint32_t player_id, int hole_index,
+                                  unsigned current_strokes) {
+    uint32_t total = golf_scorecard_total(&mp_scorecard, player_id);
+    uint16_t recorded_strokes;
+    if (hole_index >= 0 && hole_index < (int)GOLF_SCORECARD_HOLES &&
+        !golf_scorecard_get(&mp_scorecard, player_id,
+                            (unsigned)hole_index, &recorded_strokes)) {
+        total += current_strokes;
+    }
+    return total;
+}
+
+static void record_finished_player_scores(const tg_net_info *info) {
+    golf_t *golf = golf_get();
+    golf_game_t *game = golf_game_get();
+    const tg_net_player *players;
+    size_t count = 0u, i;
+    int hole_index;
+
+    if (!info || !info->match_started ||
+        info->role == TG_NET_ROLE_OFFLINE ||
+        golf->state != GOLF_STATE_IN_GAME) return;
+
+    hole_index = golf->level_num;
+    if (hole_index < 0 || hole_index >= (int)GOLF_SCORECARD_HOLES) return;
+
+    players = tg_net_get_players(&count);
+    if (count > TG_NET_MAX_PLAYERS) count = TG_NET_MAX_PLAYERS;
+    for (i = 0; i < count; ++i) {
+        const tg_net_player *player = &players[i];
+        if (player->id == 0u || player->id == info->local_player_id) continue;
+        if ((player->flags & 4u) == 0u || (player->flags & 2u) == 0u) continue;
+        (void)golf_scorecard_record(&mp_scorecard, player->id,
+                                    (unsigned)hole_index, player->strokes);
+    }
+
+    if (info->local_player_id > 0u &&
+        (game->state == GOLF_GAME_STATE_FINISHED ||
+         game->state == GOLF_GAME_STATE_CELEBRATION || game->ball.is_in_hole)) {
+        unsigned local_strokes = game->stroke_count < 1 ? 1u :
+            (game->stroke_count > (int)GOLF_SCORECARD_MAX_STROKES ?
+             GOLF_SCORECARD_MAX_STROKES : (unsigned)game->stroke_count);
+        (void)golf_scorecard_record(&mp_scorecard, info->local_player_id,
+                                    (unsigned)hole_index, local_strokes);
     }
 }
 
@@ -233,6 +300,7 @@ int golf_mp_start_match(void) {
     mp_local_ready = 0;
     mp_next_hole_level = -1;
     mp_advance_sent = 0;
+    clear_match_scorecard();
     return tg_net_start_match();
 }
 
@@ -273,7 +341,9 @@ void golf_mp_leave(void) {
         mp_local_ready = 0;
         mp_next_hole_level = -1;
         mp_advance_sent = 0;
-    }}
+        clear_match_scorecard();
+    }
+}
 
 void golf_mp_get_info(tg_net_info *out_info) {
     if (out_info) tg_net_get_info(out_info);
@@ -452,6 +522,7 @@ void golf_mp_init(void) {
         return;
     }
     clear_remote_players();
+    clear_match_scorecard();
     multiplayer_ready = 1;
     golf_debug_console_add_tab("Multiplayer", multiplayer_debug_tab);
 }
@@ -464,6 +535,7 @@ void golf_mp_update(float dt) {
     tg_net_get_info(&info);
     publish_local_ball(&info);
     update_remote_players(dt, &info);
+    record_finished_player_scores(&info);
     process_match_control_messages(&info);
     host_try_advance_hole(&info);
 
@@ -482,6 +554,7 @@ void golf_mp_update(float dt) {
             /* A host PK_START or replicated snapshot starts the same course
                for every client. Remote ball positions are displayed as separate balls. */
             match_start_handled = 1;
+            clear_match_scorecard();
             golf_start_level(0);
         } else if (state == GOLF_STATE_LOADING_LEVEL || state == GOLF_STATE_IN_GAME) {
             /* Do not restart a level if the start packet arrives late. */
@@ -629,7 +702,7 @@ void golf_mp_ui_update(void) {
         int hole = golf->level_num + 1;
         int par = (hole >= 1 && hole <= 18) ? hole_par[hole - 1] : 3;
         igSetNextWindowPos((ImVec2){18.0f, 18.0f}, ImGuiCond_Always, (ImVec2){0.0f, 0.0f});
-        igSetNextWindowSize((ImVec2){292.0f, 170.0f}, ImGuiCond_Always);
+        igSetNextWindowSize((ImVec2){292.0f, 190.0f}, ImGuiCond_Always);
         igSetNextWindowBgAlpha(0.90f);
         if (igBegin("Workshop##roundhud", NULL, flags)) {
             igText("HOLE %02d  /  18", hole);
@@ -654,6 +727,11 @@ void golf_mp_ui_update(void) {
             }
             igText("%u PLAYERS  /  %s", (unsigned)info.player_count,
                 info.status == TG_NET_STATUS_OFFLINE ? "PRACTICE" : status_name(info.status));
+            if (info.match_started && info.local_player_id > 0u) {
+                unsigned total = player_match_total(info.local_player_id,
+                    hole - 1, (unsigned)(game->stroke_count > 0 ? game->stroke_count : 0));
+                igText("TOTAL  %u  /  PAR  %u", total, match_par_through_hole(hole - 1));
+            }
             if (info.ping_available) igText("PING  %.1f ms", info.ping_ms);
             else if (info.ping_pending) igText("PING  MEASURING");
             else if (info.status == TG_NET_STATUS_CONNECTED ||
@@ -661,20 +739,29 @@ void golf_mp_ui_update(void) {
         }
         igEnd();
 
-        igSetNextWindowPos((ImVec2){graphics->viewport_size.x - 298.0f, 18.0f},
+        igSetNextWindowPos((ImVec2){graphics->viewport_size.x - 370.0f, 18.0f},
             ImGuiCond_Always, (ImVec2){0.0f, 0.0f});
-        igSetNextWindowSize((ImVec2){280.0f, 250.0f}, ImGuiCond_Always);
+        igSetNextWindowSize((ImVec2){352.0f, 500.0f}, ImGuiCond_Always);
         igSetNextWindowBgAlpha(0.90f);
         if (igBegin("Players##round", NULL, flags)) {
-            igText("SCOREBOARD");
+            igText("18-HOLE SCORECARD");
+            if (info.match_started) {
+                igText("PLAYER  /  HOLE  /  TOTAL (+/- PAR)");
+            }
             igSeparator();
             if (player_count == 0) igText("Solo practice");
             for (i = 0; i < player_count && i < TG_NET_MAX_PLAYERS; ++i) {
-                const char *state = (players[i].flags & GOLF_MP_FLAG_READY_NEXT) ? "NEXT READY" :
-                    ((players[i].flags & 2u) ? "HOLED" :
-                    ((players[i].flags & 1u) ? "PUTTING" : "READY"));
-                igBulletText("%s   %u   %s", players[i].name,
-                    (unsigned)players[i].strokes, state);
+                const tg_net_player *player = &players[i];
+                const char *state = (player->flags & GOLF_MP_FLAG_READY_NEXT) ? "NEXT READY" :
+                    ((player->flags & 2u) ? "HOLED" :
+                    ((player->flags & 1u) ? "PUTTING" : "READY"));
+                uint32_t total = info.match_started ? player_match_total(
+                    player->id, golf->level_num, player->strokes) : player->strokes;
+                int32_t relative_par = (int32_t)total -
+                    (int32_t)match_par_through_hole(golf->level_num);
+                igBulletText("%s  /  %u  /  %u (%+d)  %s", player->name,
+                    (unsigned)player->strokes, (unsigned)total,
+                    (int)relative_par, state);
             }
             if (info.last_error[0]) {
                 igSeparator();

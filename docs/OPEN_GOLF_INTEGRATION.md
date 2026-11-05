@@ -53,3 +53,8 @@ The screenshots should now visibly show Golfgame branding, one Workshop course-p
 ## Synchronized hole progression
 
 When a networked player reaches the finish screen and selects Next Hole, the game marks that player's replicated flags as ready. The host waits until every connected peer has a valid in-game position, the finished bit, and the ready-next bit. It then broadcasts a versioned, reliable control message on the Golfgame application channel. Clients accept this message only from the host player ID and only for the immediate next level while their own ball is finished and ready. Offline/solo progression keeps the upstream immediate path. Readiness is based on client-reported state, so this coordinates a friendly LAN session but is not a host-authoritative anti-cheat system.
+
+
+## 18-hole scorecard
+
+Golfgame owns a small standalone scorecard module in src/integration/golf_scorecard.c. It stores one result per player ID and hole index, ignores duplicate/replayed records, validates the 1-based player ID and 0-based hole index, and exposes completed-hole counts and totals. The multiplayer update records a player's score once their replicated state indicates the ball is holed, and records the local game state when the local ball finishes. The live scoreboard shows per-hole strokes, match total and strokes relative to par through the current hole. Scores persist in memory across all 18 holes of the active match, then reset on a new match or leaving the room. They are not persisted across app restarts and remain based on client-reported peer snapshots; this is not host-authoritative anti-cheat validation.

@@ -36,7 +36,8 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [ ] Add ball hats/accessories and trails; keep all cosmetics visual-only.
 - [ ] Make the host validate shots, strokes, hole completion and final match results. (The current ready-up gate coordinates client-reported finished/ready flags; it is not host-authoritative anti-cheat validation.)
 - [ ] Preserve completed balls at the cup while other players finish.
-- [ ] Build a persistent 18-hole scorecard, total strokes, par comparisons, winner/results screen and rematch flow.
+- [x] Track a per-player 18-hole scorecard across hole changes, with cumulative strokes and par-relative totals in the live scoreboard.
+- [ ] Add a final winner/results screen and rematch flow; scorecard data currently lives in memory for the active match.
 - [ ] Test 2, 4, 8 and 16 players, packet loss, disconnects and host shutdown.
 
 ## Nearby networking
@@ -56,4 +57,4 @@ Short, current priority list. Check items only when implemented and tested. Read
 
 ## Known limitations
 
-The Workshop levels and course-pack progression are now authored by Golfgame, but they are loaded through the upstream Open-Golf level/physics engine. The game still simulates one physical ball per client; remote balls are snapshot renderings rather than independent balls in a shared collision world. Player strokes are currently per-hole network values, not a verified cumulative 18-hole scorecard. The host still relays client-reported state and is not authoritative or safe for public-internet play. CI compilation does not prove physical Windows runtime or multi-PC LAN play.
+The Workshop levels and course-pack progression are now authored by Golfgame, but they are loaded through the upstream Open-Golf level/physics engine. The game still simulates one physical ball per client; remote balls are snapshot renderings rather than independent balls in a shared collision world. Player strokes are currently per-hole network values, not a verified cumulative 18-hole scorecard. The 18-hole scorecard is maintained in memory from finished-player snapshots and local finished state; it is not written to disk and is not host-verified anti-cheat data. The host still relays client-reported state and is not authoritative or safe for public-internet play. CI compilation does not prove physical Windows runtime or multi-PC LAN play.
