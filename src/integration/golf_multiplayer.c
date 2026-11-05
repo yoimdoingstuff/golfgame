@@ -21,6 +21,7 @@ static int mp_local_ready;
 static int mp_next_hole_level = -1;
 static int mp_advance_sent;
 static int mp_final_score_sent;
+static int mp_final_results_ready;
 static golf_scorecard mp_scorecard;
 static char mp_player_name[TG_NET_PLAYER_NAME] = "Player";
 static char mp_room_name[TG_NET_ROOM_NAME] = "Golfgame Room";
@@ -47,6 +48,7 @@ static size_t mp_remote_count;
 #define GOLF_MP_HOST_PLAYER_ID 1u
 #define GOLF_MP_CONTROL_ADVANCE_HOLE 1u
 #define GOLF_MP_CONTROL_SCORE_HOLE 2u
+#define GOLF_MP_CONTROL_REMATCH 3u
 
 static const uint8_t mp_hole_par[GOLF_SCORECARD_HOLES] = {
     2, 3, 3, 4, 3, 4, 3, 4, 3, 4, 4, 3, 4, 4, 4, 4, 4, 5
@@ -403,6 +405,7 @@ int golf_mp_start_match(void) {
     mp_next_hole_level = -1;
     mp_advance_sent = 0;
     mp_final_score_sent = 0;
+    mp_final_results_ready = 0;
     clear_match_scorecard();
     return tg_net_start_match();
 }
@@ -445,6 +448,7 @@ void golf_mp_leave(void) {
         mp_next_hole_level = -1;
         mp_advance_sent = 0;
         mp_final_score_sent = 0;
+        mp_final_results_ready = 0;
         clear_match_scorecard();
     }
 }
@@ -467,7 +471,67 @@ static void start_next_hole_local(int next_level) {
     mp_next_hole_level = -1;
     mp_advance_sent = 0;
     mp_final_score_sent = 0;
+    mp_final_results_ready = 0;
     golf_start_level(next_level);
+}
+
+static int match_scorecard_complete(void) {
+    const tg_net_player *players;
+    size_t count = 0u, i;
+
+    players = tg_net_get_players(&count);
+    if (!players || count == 0u || count > TG_NET_MAX_PLAYERS) return 0;
+    for (i = 0; i < count; ++i) {
+        if (players[i].id == 0u ||
+            golf_scorecard_holes_completed(&mp_scorecard, players[i].id) !=
+                GOLF_SCORECARD_HOLES) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void start_rematch_local(void) {
+    mp_local_ready = 0;
+    mp_next_hole_level = -1;
+    mp_advance_sent = 0;
+    mp_final_score_sent = 0;
+    mp_final_results_ready = 0;
+    clear_match_scorecard();
+    golf_start_level(0);
+}
+
+static int golf_mp_request_rematch(void) {
+    tg_net_info info;
+    uint8_t payload[GOLF_MP_CONTROL_HEADER_BYTES] = {0};
+
+    if (!multiplayer_ready) return 0;
+    tg_net_get_info(&info);
+    if (info.role != TG_NET_ROLE_HOST ||
+        info.status != TG_NET_STATUS_HOSTING ||
+        !info.match_started ||
+        !mp_final_results_ready ||
+        !match_scorecard_complete() ||
+        golf_get()->state != GOLF_STATE_IN_GAME ||
+        golf_get()->level_num != (int)GOLF_SCORECARD_HOLES - 1 ||
+        golf_game_get()->state != GOLF_GAME_STATE_FINISHED) {
+        return 0;
+    }
+
+    memcpy(payload, "GGH1", 4u);
+    payload[4] = 1u;
+    payload[5] = GOLF_MP_CONTROL_REMATCH;
+    payload[6] = (uint8_t)(GOLF_SCORECARD_HOLES - 1u);
+    payload[7] = 0u;
+
+    if (info.player_count > 1u &&
+        !tg_net_send_reliable_message(0, GOLF_MP_CONTROL_CHANNEL,
+            payload, sizeof(payload))) {
+        return 0;
+    }
+
+    start_rematch_local();
+    return 1;
 }
 
 static void write_u16_le(uint8_t *out, uint16_t value) {
@@ -611,6 +675,21 @@ static void process_match_control_messages(const tg_net_info *info) {
 
         command = message.data[5];
         hole_index = message.data[6];
+
+        if (command == GOLF_MP_CONTROL_REMATCH) {
+            if (message.data_size != GOLF_MP_CONTROL_HEADER_BYTES ||
+                message.data[7] != 0u ||
+                hole_index != GOLF_SCORECARD_HOLES - 1u ||
+                golf->state != GOLF_STATE_IN_GAME ||
+                golf->level_num != (int)GOLF_SCORECARD_HOLES - 1 ||
+                game->state != GOLF_GAME_STATE_FINISHED ||
+                !mp_final_results_ready || !match_scorecard_complete()) {
+                continue;
+            }
+            start_rematch_local();
+            continue;
+        }
+
         if (hole_index != (uint8_t)golf->level_num ||
             hole_index >= GOLF_SCORECARD_HOLES) continue;
 
@@ -619,7 +698,10 @@ static void process_match_control_messages(const tg_net_info *info) {
                 game->state == GOLF_GAME_STATE_CELEBRATION ||
                 game->state == GOLF_GAME_STATE_FINISHED;
             if (golf->state != GOLF_STATE_IN_GAME || !local_finished) continue;
-            (void)apply_hole_result_message(message.data, message.data_size);
+            if (apply_hole_result_message(message.data, message.data_size) &&
+                hole_index == GOLF_SCORECARD_HOLES - 1u) {
+                mp_final_results_ready = 1;
+            }
             continue;
         }
 
@@ -677,6 +759,7 @@ static void host_try_publish_final_hole(const tg_net_info *info) {
     if (info->player_count > 1u && !tg_net_send_reliable_message(0,
             GOLF_MP_CONTROL_CHANNEL, payload, payload_size)) return;
     mp_final_score_sent = 1;
+    mp_final_results_ready = 1;
 }
 
 static int golf_mp_request_ping(void) {
@@ -945,9 +1028,97 @@ void golf_mp_ui_update(void) {
     if (!multiplayer_ready) return;
     tg_net_get_info(&info);
     players = tg_net_get_players(&player_count);
+    if (player_count > TG_NET_MAX_PLAYERS) player_count = TG_NET_MAX_PLAYERS;
     golf_mp_push_theme();
 
     if (golf->state == GOLF_STATE_IN_GAME) {
+        if (info.match_started && mp_final_results_ready &&
+            golf->level_num == (int)GOLF_SCORECARD_HOLES - 1 &&
+            game->state == GOLF_GAME_STATE_FINISHED &&
+            match_scorecard_complete()) {
+            const tg_net_player *ranked[TG_NET_MAX_PLAYERS];
+            size_t ranked_count = 0u;
+            size_t tied_for_first = 0u;
+            uint32_t winning_total = 0u;
+
+            for (i = 0; i < player_count; ++i) {
+                const tg_net_player *candidate = &players[i];
+                size_t insert_at;
+                uint32_t candidate_total;
+                if (candidate->id == 0u) continue;
+                candidate_total = golf_scorecard_total(&mp_scorecard, candidate->id);
+                insert_at = ranked_count;
+                while (insert_at > 0u &&
+                    golf_scorecard_total(&mp_scorecard, ranked[insert_at - 1u]->id) >
+                        candidate_total) {
+                    ranked[insert_at] = ranked[insert_at - 1u];
+                    --insert_at;
+                }
+                ranked[insert_at] = candidate;
+                ++ranked_count;
+            }
+
+            if (ranked_count > 0u) {
+                winning_total = golf_scorecard_total(&mp_scorecard, ranked[0]->id);
+                for (i = 0; i < ranked_count; ++i) {
+                    if (golf_scorecard_total(&mp_scorecard, ranked[i]->id) != winning_total)
+                        break;
+                    ++tied_for_first;
+                }
+            }
+
+            igSetNextWindowPos((ImVec2){graphics->viewport_size.x * 0.5f,
+                graphics->viewport_size.y * 0.5f},
+                ImGuiCond_Always, (ImVec2){0.5f, 0.5f});
+            igSetNextWindowSize((ImVec2){560.0f, 520.0f}, ImGuiCond_Always);
+            igSetNextWindowBgAlpha(0.97f);
+            if (igBegin("Workshop complete##finalresults", NULL, flags)) {
+                igText("18 HOLES COMPLETE");
+                igSeparator();
+                igText("FINAL STANDINGS  /  LOWEST TOTAL WINS");
+                igSeparator();
+
+                if (ranked_count == 0u) {
+                    igText("No completed scorecard entries.");
+                } else {
+                    if (tied_for_first > 1u) {
+                        igText("TIED FOR FIRST  /  %u STROKES", (unsigned)winning_total);
+                    } else {
+                        igText("WINNER  /  %s  /  %u STROKES",
+                            ranked[0]->name, (unsigned)winning_total);
+                    }
+
+                    igSeparator();
+                    for (i = 0; i < ranked_count; ++i) {
+                        uint32_t total = golf_scorecard_total(&mp_scorecard, ranked[i]->id);
+                        int relative_par = (int)total -
+                            (int)match_par_through_hole((int)GOLF_SCORECARD_HOLES - 1);
+                        igBulletText("%u. %s   %u   (%+d)",
+                            (unsigned)(i + 1u), ranked[i]->name,
+                            (unsigned)total, relative_par);
+                    }
+                }
+
+                igSeparator();
+                if (info.role == TG_NET_ROLE_HOST) {
+                    if (igButton("PLAY AGAIN  /  RESTART WORKSHOP",
+                            (ImVec2){420.0f, 48.0f})) {
+                        if (!golf_mp_request_rematch()) {
+                            fprintf(stderr, "[golfgame] Rematch could not be sent.\n");
+                        }
+                    }
+                } else if (info.role == TG_NET_ROLE_CLIENT) {
+                    igTextWrapped("WAITING FOR THE HOST TO START A REMATCH");
+                } else {
+                    igTextWrapped("MATCH COMPLETE");
+                }
+                igText("SCORES RESET WHEN THE NEXT MATCH STARTS");
+            }
+            igEnd();
+            golf_mp_pop_theme();
+            return;
+        }
+
         int hole = golf->level_num + 1;
         int par = (hole >= 1 && hole <= 18) ? hole_par[hole - 1] : 3;
         igSetNextWindowPos((ImVec2){18.0f, 18.0f}, ImGuiCond_Always, (ImVec2){0.0f, 0.0f});

@@ -38,7 +38,7 @@ Short, current priority list. Check items only when implemented and tested. Read
 - [ ] Make the host validate shots, strokes, hole completion and final match results. (The current ready-up gate coordinates client-reported finished/ready flags; it is not host-authoritative anti-cheat validation.)
 - [ ] Preserve completed balls at the cup while other players finish.
 - [x] Track a per-player 18-hole scorecard across hole changes, with cumulative strokes and par-relative totals in the live scoreboard; the host reliably publishes each completed hole's score rows before progression and sends final-hole results.
-- [ ] Add a final winner/results screen and rematch flow; scorecard data currently lives in memory for the active match.
+- [x] Add a final standings screen with tie detection and a reliable host-triggered rematch that resets the 18-hole scorecard.
 - [ ] Test 2, 4, 8 and 16 players, packet loss, disconnects and host shutdown.
 
 ## Nearby networking
