@@ -34,8 +34,8 @@ jobs:
       - name: Configure networking-only build
         run: cmake -S . -B build -DGOLFGAME_BUILD_OPEN_GOLF=OFF -DCMAKE_BUILD_TYPE=Release
       - name: Build networking demo and unit tests
-        run: cmake --build build --config Release --target tg_net_demo golf_scorecard_tests
-      - name: Run scorecard unit tests
+        run: cmake --build build --config Release --target tg_net_demo golf_scorecard_tests golf_ball_collision_tests
+      - name: Run scorecard and ball-collision unit tests
         run: ctest --test-dir build --output-on-failure
       - name: Local network smoke test
         run: sh ./scripts/test-local.sh
