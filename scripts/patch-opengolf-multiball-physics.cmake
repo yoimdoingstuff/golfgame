@@ -112,12 +112,16 @@ set(_water_audio_replacement [=[
 ]=])
 string(REPLACE "${_water_audio}" "${_water_audio_replacement}" _body "${_body}")
 
-if(_body MATCHES "game\\.ball\\.")
+string(FIND "${_body}" "game.ball." _global_ball_reference_pos)
+string(FIND "${_body}" "if (record_history && ball->is_moving && num_contacts > 0)" _history_guard_pos)
+string(FIND "${_body}" "if (effects_enabled && contact->impulse_mag > 1 && contact->cull_dot < -0.15f)" _impact_guard_pos)
+string(FIND "${_body}" "if (update_dynamic_bvh) {" _dynamic_bvh_guard_pos)
+if(NOT _global_ball_reference_pos EQUAL -1)
     message(FATAL_ERROR "The extracted physics tick still contains a global ball reference.")
 endif()
-if(NOT _body MATCHES "record_history && ball->is_moving" OR
-   NOT _body MATCHES "effects_enabled && contact->impulse_mag" OR
-   NOT _body MATCHES "if \(update_dynamic_bvh\)")
+if(_history_guard_pos EQUAL -1 OR
+   _impact_guard_pos EQUAL -1 OR
+   _dynamic_bvh_guard_pos EQUAL -1)
     message(FATAL_ERROR "The per-ball physics side-effect guards were not applied.")
 endif()
 
