@@ -28,6 +28,9 @@ endif()
 
 add_library(golf_spawn_layout STATIC src/integration/golf_spawn_layout.c)
 target_include_directories(golf_spawn_layout PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/integration")
+if(UNIX)
+    target_link_libraries(golf_spawn_layout PUBLIC m)
+endif()
 
 if(BUILD_TESTING)
     add_executable(golf_spawn_layout_tests tests/test_spawn_layout.c)
